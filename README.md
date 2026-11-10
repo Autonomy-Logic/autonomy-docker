@@ -123,7 +123,7 @@ On a pass, stdout lists one `<package>:<tag>` line per image whose `VERSION` cha
 
 Environment: `REGISTRY` (default `ghcr.io/autonomy-logic`) and `TAG_EXISTS` (default `scripts/lib/tag-exists.sh`),
 called as `"$TAG_EXISTS" <registry> <package> <tag>`. `scripts/lib/tag-exists.sh` queries `ghcr.io` anonymously and
-exits 0 when the tag exists, 1 when it or the package is absent, 2 on any error.
+exits 0 when the tag exists, 1 when the tag is absent or no public package of that name exists, 2 on any error.
 
 ### Running the checks locally
 

@@ -31,7 +31,8 @@ scripts/check-versions.sh --base origin/main --head HEAD
 - Workflow actions are pinned by a bare full 40-character commit SHA, with no trailing comment.
 - Values reach a workflow `run:` step only through `env:`, never as a `${{ }}` expression in the script text.
 - Comments are minimal: a short description above a function, nothing else.
-- The workflow file name `.github/workflows/build.yml` and the job id `ci` are fixed: the branch rules depend on them.
+- The job id `ci` is fixed because it is the required status check of `main`; the workflow file name
+  `.github/workflows/build.yml` is fixed because product repositories verify the images against it as the signer workflow.
 
 ## License
 
