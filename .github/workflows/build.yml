@@ -1,0 +1,52 @@
+name: build
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check-versions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Lint shell scripts
+        run: shellcheck scripts/*.sh scripts/lib/*.sh tests/check-versions/*.sh
+
+      - name: Test check-versions
+        run: tests/check-versions/run.sh
+
+      - name: Check image versions
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: scripts/check-versions.sh --base "$BASE_SHA" --head "$HEAD_SHA"
+
+  ci:
+    runs-on: ubuntu-24.04
+    if: always()
+    needs: [check-versions]
+    permissions: {}
+    timeout-minutes: 5
+    steps:
+      - name: Require every needed job to succeed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          if [ -z "$RESULTS" ]; then
+            echo "no job result received"
+            exit 1
+          fi
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "a needed job finished with result: $result"
+              exit 1
+            fi
+          done
