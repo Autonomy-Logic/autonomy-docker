@@ -680,3 +680,62 @@ case_18_reads_revisions_not_the_working_tree() {
   expect_stdout
   expect_no_violation
 }
+
+case_19_tag_exists_maps_registry_answers() {
+  local token_url="https://ghcr.io/token?scope=repository:autonomy-logic/autonomy-base:pull"
+  local manifest_req="https://ghcr.io/v2/autonomy-logic/autonomy-base/manifests/trixie-1 Authorization: Bearer x"
+
+  sub "manifest 200 means the tag exists"
+  fake_registry 200 '{"token":"x"}' 0 200 0
+  run_tag_exists autonomy-base trixie-1
+  expect_rc 0
+  expect_curl_requests "$token_url" "$manifest_req"
+
+  sub "manifest 404 means the tag is absent"
+  fake_registry 200 '{"token":"x"}' 0 404 0
+  run_tag_exists autonomy-base trixie-1
+  expect_rc 1
+  expect_curl_requests "$token_url" "$manifest_req"
+
+  sub "token 403 means no public package"
+  fake_registry 403 '{"errors":[]}' 0 200 0
+  run_tag_exists autonomy-base trixie-1
+  expect_rc 1
+  expect_curl_requests "$token_url"
+
+  sub "manifest 401 is an error"
+  fake_registry 200 '{"token":"x"}' 0 401 0
+  run_tag_exists autonomy-base trixie-1
+  expect_rc 2
+  expect_curl_requests "$token_url" "$manifest_req"
+
+  sub "manifest 500 is an error"
+  fake_registry 200 '{"token":"x"}' 0 500 0
+  run_tag_exists autonomy-base trixie-1
+  expect_rc 2
+  expect_curl_requests "$token_url" "$manifest_req"
+
+  sub "token 500 is an error"
+  fake_registry 500 '{}' 0 200 0
+  run_tag_exists autonomy-base trixie-1
+  expect_rc 2
+  expect_curl_requests "$token_url"
+
+  sub "token request curl failure is an error"
+  fake_registry 200 '{"token":"x"}' 28 200 0
+  run_tag_exists autonomy-base trixie-1
+  expect_rc 2
+  expect_curl_requests "$token_url"
+
+  sub "manifest request curl failure is an error"
+  fake_registry 200 '{"token":"x"}' 0 200 28
+  run_tag_exists autonomy-base trixie-1
+  expect_rc 2
+  expect_curl_requests "$token_url" "$manifest_req"
+
+  sub "token body without a token is an error"
+  fake_registry 200 '{}' 0 200 0
+  run_tag_exists autonomy-base trixie-1
+  expect_rc 2
+  expect_curl_requests "$token_url"
+}

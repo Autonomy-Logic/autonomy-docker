@@ -4,6 +4,7 @@
 CHECK_VERSIONS="$REPO_ROOT/scripts/check-versions.sh"
 TAG_EXISTS_SCRIPT="$REPO_ROOT/scripts/lib/tag-exists.sh"
 STUB_TAG_EXISTS="$TESTS_DIR/stub-tag-exists.sh"
+FAKE_CURL="$TESTS_DIR/fake-curl.sh"
 FAKE_REGISTRY="registry.invalid/test-org"
 RULE_IDS=(version-not-bumped version-format version-increment descendant-not-bumped manifest-invalid tag-exists image-removed)
 
@@ -185,4 +186,37 @@ expect_stub_calls() {
   fi
   cmp -s "$T/expected-calls" "$T/actual-calls" ||
     fail "expected registry calls: $(printf '[%s] ' "$@")got: $(tr '\n' ';' <"$T/actual-calls")"
+}
+
+# Installs the fake curl as $T/bin/curl and sets its answers: <token-status> <token-body> <token-curl-exit> <manifest-status> <manifest-curl-exit>.
+fake_registry() {
+  mkdir -p "$T/bin"
+  cp "$FAKE_CURL" "$T/bin/curl"
+  chmod +x "$T/bin/curl"
+  export FAKE_CURL_LOG="$T/curl.log"
+  export FAKE_CURL_TOKEN_STATUS="$1" FAKE_CURL_TOKEN_BODY="$2" FAKE_CURL_TOKEN_EXIT="$3"
+  export FAKE_CURL_MANIFEST_STATUS="$4" FAKE_CURL_MANIFEST_BODY="" FAKE_CURL_MANIFEST_EXIT="$5"
+  rm -f "$FAKE_CURL_LOG"
+}
+
+# Runs tag-exists.sh for ghcr.io/autonomy-logic <package> <tag> with the fake curl first on PATH, capturing RC, stdout and stderr.
+run_tag_exists() {
+  RC=0
+  (PATH="$T/bin:$PATH" "$BASH" "$TAG_EXISTS_SCRIPT" ghcr.io/autonomy-logic "$1" "$2") >"$T/out" 2>"$T/err" || RC=$?
+}
+
+# Asserts the fake curl received exactly the given request lines, in order; no argument asserts no request.
+expect_curl_requests() {
+  if [ "$#" -eq 0 ]; then
+    : >"$T/expected-requests"
+  else
+    printf '%s\n' "$@" >"$T/expected-requests"
+  fi
+  if [ -f "$FAKE_CURL_LOG" ]; then
+    cp "$FAKE_CURL_LOG" "$T/actual-requests"
+  else
+    : >"$T/actual-requests"
+  fi
+  cmp -s "$T/expected-requests" "$T/actual-requests" ||
+    fail "expected curl requests: $(printf '[%s] ' "$@")got: $(tr '\n' ';' <"$T/actual-requests")"
 }
