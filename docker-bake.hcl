@@ -36,6 +36,9 @@ target "_common" {
   args = {
     SOURCE_DATE_EPOCH = SOURCE_DATE_EPOCH
   }
+  labels = {
+    "org.opencontainers.image.source" = "https://github.com/Autonomy-Logic/autonomy-docker"
+  }
 }
 
 target "root" {
