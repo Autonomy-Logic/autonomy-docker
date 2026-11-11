@@ -195,7 +195,8 @@ fake_registry() {
   chmod +x "$T/bin/curl"
   export FAKE_CURL_LOG="$T/curl.log"
   export FAKE_CURL_TOKEN_STATUS="$1" FAKE_CURL_TOKEN_BODY="$2" FAKE_CURL_TOKEN_EXIT="$3"
-  export FAKE_CURL_MANIFEST_STATUS="$4" FAKE_CURL_MANIFEST_BODY="" FAKE_CURL_MANIFEST_EXIT="$5"
+  export FAKE_CURL_MANIFEST_STATUS="$4" FAKE_CURL_MANIFEST_EXIT="$5"
+  export FAKE_CURL_MANIFEST_BODY="docker-content-digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   rm -f "$FAKE_CURL_LOG"
 }
 

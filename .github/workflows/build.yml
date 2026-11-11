@@ -3,12 +3,26 @@ name: build
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  REGISTRY: ghcr.io/autonomy-logic
+  SIGNER: Autonomy-Logic/autonomy-docker/.github/workflows/build.yml
+  SOURCE_REF: refs/heads/main
+  BUILDX_BUILDER: autonomy
+
 jobs:
   check-versions:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -18,10 +32,13 @@ jobs:
           fetch-depth: 0
 
       - name: Lint shell scripts
-        run: shellcheck scripts/*.sh scripts/lib/*.sh tests/check-versions/*.sh
+        run: shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh tests/*/*.sh
 
       - name: Test check-versions
         run: tests/check-versions/run.sh
+
+      - name: Test publish checks
+        run: tests/publish-checks/run.sh
 
       - name: Check image versions
         env:
@@ -29,10 +46,31 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: scripts/check-versions.sh --base "$BASE_SHA" --head "$HEAD_SHA"
 
+  images:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up the builder
+        run: scripts/setup-builder.sh
+
+      - name: Set the build timestamp
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)" >>"$GITHUB_ENV"
+
+      - name: Build and smoke test every image
+        run: tests/smoke.sh
+
+      - name: Check the builds are reproducible
+        run: tests/reproducible.sh
+
   ci:
     runs-on: ubuntu-24.04
-    if: always()
-    needs: [check-versions]
+    if: always() && github.event_name == 'pull_request'
+    needs: [check-versions, images]
     permissions: {}
     timeout-minutes: 5
     steps:
@@ -50,3 +88,104 @@ jobs:
               exit 1
             fi
           done
+
+  plan:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Log in to the registry
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Check every tag before any push
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          plan="$(scripts/publish-plan.sh "$REGISTRY" "$SIGNER" "$SOURCE_REF")"
+          matrix="$(printf '%s\n' "$plan" | jq -Rnc '[inputs | select(startswith("publish ")) | {dir: ltrimstr("publish ")}]')"
+          echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
+          printf '%s\n' "$plan" | sed -n 's/^published \(.*\)$/Already published: `FROM \1`/p' >>"$GITHUB_STEP_SUMMARY"
+
+  publish:
+    needs: plan
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.plan.outputs.matrix != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: publish
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up the builder
+        run: scripts/setup-builder.sh
+
+      - name: Log in to the registry
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build and push the image when its tag is absent
+        id: push
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          IMAGE_DIR: ${{ matrix.dir }}
+        run: |
+          SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
+          export SOURCE_DATE_EPOCH
+          result="$(scripts/publish-image.sh "$REGISTRY" "$SIGNER" "$SOURCE_REF" "$IMAGE_DIR")"
+          image="$(printf '%s\n' "$result" | sed -n '1p')"
+          ref="${image#* }"
+          {
+            echo "state=${image%% *}"
+            echo "ref=$ref"
+            echo "name=${ref%%:*}"
+            echo "digest=${ref##*@}"
+            echo "parent=$(printf '%s\n' "$result" | sed -n 's/^parent //p')"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Attest the pushed digest
+        if: steps.push.outputs.state == 'pushed'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        with:
+          subject-name: ${{ steps.push.outputs.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Print the pinned FROM line
+        env:
+          STATE: ${{ steps.push.outputs.state }}
+          REF: ${{ steps.push.outputs.ref }}
+          PARENT: ${{ steps.push.outputs.parent }}
+        run: |
+          {
+            printf '%s: `FROM %s`\n' "$STATE" "$REF"
+            if [ -n "$PARENT" ]; then
+              printf 'built on `%s`\n' "$PARENT"
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
