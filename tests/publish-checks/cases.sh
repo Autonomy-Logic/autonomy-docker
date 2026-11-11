@@ -381,7 +381,7 @@ case_16_publish_image_builds_a_child_on_the_verified_parent_digest() {
   attestation 0
   run_script "$PUBLISH_IMAGE" "$REGISTRY" "$SIGNER" "$SOURCE_REF" python
   expect_rc 0
-  expect_stdout "pushed $PYTHON_IMAGE:py3.13-trixie-1@$PUSHED_DIGEST"
+  expect_stdout "pushed $PYTHON_IMAGE:py3.13-trixie-1@$PUSHED_DIGEST" "parent $IMAGE:trixie-1@$DIGEST"
   expect_gh "$GH_CALL"
   expect_docker "buildx bake python --push --provenance=mode=max --sbom=$SBOM --metadata-file <metadata>" \
     "PYTHON_PACKAGE=autonomy-python-base" "PYTHON_TAG=py3.13-trixie-1" "REGISTRY=$REGISTRY" \

@@ -67,7 +67,6 @@ if [ "$parent" != "-" ]; then
   esac
   prefix="$(var_prefix "$parent")"
   export "${prefix}_PACKAGE=${IMG_PKG[$parent]}" "${prefix}_TAG=${IMG_TAG[$parent]}" "${prefix}_DIGEST=${parent_ref##*@}"
-  printf 'publish-image: %s builds on %s\n' "$ref" "$parent_ref" >&2
 fi
 
 metadata="$(mktemp)" || exit 2
@@ -82,3 +81,6 @@ if ! [[ $(<"$metadata") =~ \"containerimage\.digest\"[[:space:]]*:[[:space:]]*\"
   exit 2
 fi
 printf 'pushed %s@%s\n' "$ref" "${BASH_REMATCH[1]}"
+if [ "$parent" != "-" ]; then
+  printf 'parent %s\n' "$parent_ref"
+fi

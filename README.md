@@ -193,7 +193,8 @@ A push to `main` or a manual run of `build.yml` on `main` publishes the tags tha
 2. Job `publish` runs once per absent tag, one at a time, in the `publish` environment. It holds the only write
    permissions of the workflow, uses `GITHUB_TOKEN` only and restores no cache. `scripts/publish-image.sh` checks the
    tag again, verifies the parent with `scripts/verify-parent.sh`, then builds and pushes with provenance
-   (`mode=max`) and an SBOM. The job attests the pushed digest and prints the pinned `FROM` line in the summary.
+   (`mode=max`) and an SBOM. The job attests the pushed digest and prints in the summary the pinned `FROM` line
+   and, for a child, the parent tag and digest it was built on.
 
 | Script | Exit 0 | Exit 1 | Exit 2 |
 | --- | --- | --- | --- |

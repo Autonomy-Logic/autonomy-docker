@@ -158,12 +158,14 @@ jobs:
           SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
           export SOURCE_DATE_EPOCH
           result="$(scripts/publish-image.sh "$REGISTRY" "$SIGNER" "$SOURCE_REF" "$IMAGE_DIR")"
-          ref="${result#* }"
+          image="$(printf '%s\n' "$result" | sed -n '1p')"
+          ref="${image#* }"
           {
-            echo "state=${result%% *}"
+            echo "state=${image%% *}"
             echo "ref=$ref"
             echo "name=${ref%%:*}"
             echo "digest=${ref##*@}"
+            echo "parent=$(printf '%s\n' "$result" | sed -n 's/^parent //p')"
           } >>"$GITHUB_OUTPUT"
 
       - name: Attest the pushed digest
@@ -179,5 +181,11 @@ jobs:
         env:
           STATE: ${{ steps.push.outputs.state }}
           REF: ${{ steps.push.outputs.ref }}
+          PARENT: ${{ steps.push.outputs.parent }}
         run: |
-          printf '%s: `FROM %s`\n' "$STATE" "$REF" >>"$GITHUB_STEP_SUMMARY"
+          {
+            printf '%s: `FROM %s`\n' "$STATE" "$REF"
+            if [ -n "$PARENT" ]; then
+              printf 'built on `%s`\n' "$PARENT"
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
