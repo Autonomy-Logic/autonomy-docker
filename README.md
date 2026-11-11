@@ -5,7 +5,15 @@ The central repository that builds the base images of the Autonomy Node product 
 
 ## Images
 
-`images.conf` is the source of the image list. No image is published yet.
+`images.conf` is the source of the image list.
+
+| Directory | Package | Tag | Contents | Built on |
+| --- | --- | --- | --- | --- |
+| `root` | `ghcr.io/autonomy-logic/autonomy-base` | `trixie-1` | Debian 13 slim, dpkg path excludes (docs, man pages, locales, sanitizer runtimes), apt on the Debian snapshot `20261110T000000Z`, `ca-certificates` | `debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2` |
+| `python` | `ghcr.io/autonomy-logic/autonomy-python-base` | `py3.13-trixie-1` | `root` plus Debian `python3` 3.13 and `libpython3.13` | `root` |
+
+Every image is built for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. A product pins a base by tag and digest,
+`FROM <package>:<tag>@sha256:<digest>`; the publish run prints that line in its summary.
 
 ## Layout
 
@@ -19,16 +27,24 @@ The central repository that builds the base images of the Autonomy Node product 
 | `netmon/Dockerfile`, `netmon/VERSION` | Base image of the network monitor image. |
 | `docker-bake.hcl` | Docker Buildx bake definition of every image. |
 | `images.conf` | Image list: directory, package and parent of each image. |
-| `scripts/` | Repository scripts, including the pull request version gate. |
-| `tests/` | Tests of the repository scripts. |
-| `.github/workflows/build.yml` | Pull request checks. |
+| `scripts/` | Repository scripts: the pull request version gate and the publish checks. |
+| `tests/` | Tests of the repository scripts and one smoke test per image, `tests/<dir>/run.sh`. |
+| `.github/workflows/build.yml` | Pull request checks and the publish jobs. |
 | `.github/workflows/drift.yml` | Drift check. |
 
-The image directories, `docker-bake.hcl` and `drift.yml` are planned and not in the repository yet.
+The `node`, `runtime`, `orchestrator` and `netmon` directories and `drift.yml` are planned and not in the repository
+yet.
 
 ## Base-image policy
 
-This section holds the rules for choosing, pinning and updating the upstream base images.
+- The root image starts from an upstream image pinned by digest. No Dockerfile uses a floating upstream tag.
+- apt reads the Debian snapshot named by `DEBIAN_SNAPSHOT` in `root/Dockerfile`. The snapshot stays in the apt sources
+  of the image, so every image built on the root installs from the same package set.
+- An upstream digest or the snapshot changes only through a reviewed pull request that bumps `root/VERSION` and the
+  `VERSION` of every descendant. Until that bump, no Debian update reaches the images.
+- A child image names its parent as the build context `parent` (`FROM parent`); `docker-bake.hcl` resolves it. The
+  labels `org.opencontainers.image.base.name` and `org.opencontainers.image.base.digest` of a published child hold the
+  tag and the digest of the parent it was built on.
 
 ## Versions and tags
 
@@ -75,11 +91,32 @@ grandchildren and further) changes in the same pull request.
 
 ## Bump procedure
 
-This section holds the step-by-step procedure for bumping an image and its descendants.
+1. Change the image directory and raise its `VERSION` by one. In the root, update the upstream digest and
+   `DEBIAN_SNAPSHOT` together.
+2. Raise the `VERSION` of every descendant in `images.conf`.
+3. Update the image table of this README.
+4. Open the pull request; `scripts/check-versions.sh --base origin/main --head HEAD` lists the tags it will publish.
+5. After the merge, the publish run prints the pinned `FROM` line of each new tag for the product pull requests.
+
+Adding an image also needs its row in `images.conf`, its target and variables in `docker-bake.hcl`
+(`<DIR>_PACKAGE`, `<DIR>_TAG`, and `<DIR>_DIGEST` when it has children) and its smoke test `tests/<dir>/run.sh`.
 
 ## Building locally
 
-The images build with Docker Buildx from `docker-bake.hcl`; this section holds the build commands.
+The images build with Docker Buildx from `docker-bake.hcl`. `SOURCE_DATE_EPOCH` is the commit time; file times later
+than it are rewritten to it, so two builds of one commit give the same layers. With the default `0` the Python
+bytecode shipped by Debian no longer matches its sources, and the Python smoke test fails.
+
+```sh
+export SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
+docker buildx bake
+tests/python/run.sh ghcr.io/autonomy-logic/autonomy-python-base:dev linux/arm64
+```
+
+A local build tags every image `dev` and builds each child on the local build of its parent. Loading the three
+platforms at once needs the containerd image store; otherwise `scripts/setup-builder.sh` creates the builder used by
+the workflow (`export BUILDX_BUILDER=autonomy`) and `tests/smoke.sh` builds and tests one platform at a time.
+`tests/reproducible.sh` builds every image twice without cache and compares the results.
 
 ## Drift check
 
@@ -88,8 +125,17 @@ This section holds how the drift check detects upstream base-image changes and w
 ## Pull request checks
 
 Every pull request to `main` runs `.github/workflows/build.yml`. Its job `ci` is the single gate check: it passes only
-when every job it depends on succeeds. Today it depends on `check-versions`, which runs `shellcheck` on the scripts and
-tests, the tests of the version gate, and `scripts/check-versions.sh` against the base of the pull request.
+when every job it depends on succeeds. It depends on:
+
+- `check-versions`: `shellcheck` on the scripts and tests, the tests of the version gate and of the publish checks,
+  and `scripts/check-versions.sh` against the base of the pull request;
+- `images`: builds every image for the three platforms without pushing, runs the smoke tests (`tests/smoke.sh`) and
+  the reproducibility check (`tests/reproducible.sh`).
+
+No product image builds on these bases yet, so no pull request job builds a product Dockerfile on the candidate
+bases. The check belongs to the first product pin: `docker buildx build --build-context
+"<package>:<tag>@sha256:<digest>=docker-image://<candidate>"` replaces a digest-pinned `FROM` when the key is the
+full reference, digest included.
 
 ### `check-versions.sh`
 
@@ -122,8 +168,9 @@ On a pass, stdout lists one `<package>:<tag>` line per image whose `VERSION` cha
 | 3 | The registry check failed for at least one image; the gate fails closed and still prints the violations. |
 
 Environment: `REGISTRY` (default `ghcr.io/autonomy-logic`) and `TAG_EXISTS` (default `scripts/lib/tag-exists.sh`),
-called as `"$TAG_EXISTS" <registry> <package> <tag>`. `scripts/lib/tag-exists.sh` queries `ghcr.io` anonymously and
-exits 0 when the tag exists, 1 when the tag is absent or no public package of that name exists, 2 on any error.
+called as `"$TAG_EXISTS" <registry> <package> <tag>`. `scripts/lib/tag-exists.sh` queries `ghcr.io` and exits 0 when
+the tag exists, 1 when the tag is absent or no public package of that name exists, 2 on any error. It is
+`scripts/lib/tag-digest.sh` without its output.
 
 ### Running the checks locally
 
@@ -131,9 +178,35 @@ The scripts need bash 4 or later (on macOS, install a current bash, for example 
 
 ```sh
 tests/check-versions/run.sh
-shellcheck scripts/*.sh scripts/lib/*.sh tests/check-versions/*.sh
+tests/publish-checks/run.sh
+shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh tests/*/*.sh
 scripts/check-versions.sh --base origin/main --head HEAD
 ```
+
+## Publishing
+
+A push to `main` or a manual run of `build.yml` on `main` publishes the tags that are absent from the registry, in
+`images.conf` order, parents first. On any other ref the publish jobs do not run.
+
+1. Job `plan` runs `scripts/publish-plan.sh`, which checks every image with `scripts/existing-tag.sh` before any
+   push. A failed check ends the run and nothing is pushed.
+2. Job `publish` runs once per absent tag, one at a time, in the `publish` environment. It holds the only write
+   permissions of the workflow, uses `GITHUB_TOKEN` only and restores no cache. `scripts/publish-image.sh` checks the
+   tag again, verifies the parent with `scripts/verify-parent.sh`, then builds and pushes with provenance
+   (`mode=max`) and an SBOM. The job attests the pushed digest and prints the pinned `FROM` line in the summary.
+
+| Script | Exit 0 | Exit 1 | Exit 2 |
+| --- | --- | --- | --- |
+| `scripts/existing-tag.sh <registry> <package> <tag> <signer-workflow> <source-ref>` | stdout `absent <ref>`, or `published <ref>@<digest>` when the tag exists and its digest is attested by the signer on the source ref | the tag exists and its digest is not attested; stderr names the tag and the digest, stdout is empty | registry or tool error |
+| `scripts/verify-parent.sh <registry> <package> <tag> <signer-workflow> <source-ref>` | stdout `<ref>@<digest>`, the attested parent | the parent tag is absent, or its digest is not attested; stderr names the tag and the digest | registry or tool error |
+
+The signer is `Autonomy-Logic/autonomy-docker/.github/workflows/build.yml` on `refs/heads/main`. The attestation is
+verified with `gh attestation verify --signer-workflow --source-ref --deny-self-hosted-runners`. With `REGISTRY_TOKEN`
+set, the registry is queried with that credential, which also sees a private package.
+
+A new package is private until a repository admin makes it public. When a push succeeds and its attestation fails,
+the tag exists unattested and every later run stops at `plan`; a repository admin deletes that version, then the
+run is repeated.
 
 ## Contributing
 
