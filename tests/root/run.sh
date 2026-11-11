@@ -32,4 +32,10 @@ docker run --rm --network none --platform "$2" "$1" sh -euc '
   check test ! -e /var/cache/ldconfig/aux-cache
   check test -z "$(command -v python3)"
 ' sh "$arch" || exit 1
+
+docker run --rm --platform "$2" "$1" sh -euc '
+  apt-get update -qq
+  pending="$(apt-get -s upgrade | grep "^Inst " || true)"
+  test -z "$pending" || { echo "not ok: updates in the snapshot are not installed: $pending" >&2; exit 1; }
+' || exit 1
 printf 'ok root %s\n' "$2"

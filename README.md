@@ -39,7 +39,8 @@ yet.
 
 - The root image starts from an upstream image pinned by digest. No Dockerfile uses a floating upstream tag.
 - apt reads the Debian snapshot named by `DEBIAN_SNAPSHOT` in `root/Dockerfile`. The snapshot stays in the apt sources
-  of the image, so every image built on the root installs from the same package set.
+  of the image, so every image built on the root installs from the same package set. The root build installs every
+  update the snapshot holds for the packages of the upstream image.
 - An upstream digest or the snapshot changes only through a reviewed pull request that bumps `root/VERSION` and the
   `VERSION` of every descendant. Until that bump, no Debian update reaches the images.
 - A child image names its parent as the build context `parent` (`FROM parent`); `docker-bake.hcl` resolves it. The
