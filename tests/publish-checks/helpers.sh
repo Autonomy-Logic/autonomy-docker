@@ -35,7 +35,7 @@ run_case() {
 # Starts a named sub-case: clears the fake logs, the credentials and the last result.
 sub() {
   SUB="$1"
-  unset REGISTRY_TOKEN FAKE_CURL_MANIFEST_STATUS_autonomy_base FAKE_CURL_MANIFEST_STATUS_autonomy_python_base
+  unset REGISTRY_TOKEN FAKE_GH_SUBJECT FAKE_CURL_MANIFEST_STATUS_autonomy_base FAKE_CURL_MANIFEST_STATUS_autonomy_python_base
   export SOURCE_DATE_EPOCH=1794347526 FAKE_DOCKER_EXIT=0 FAKE_DOCKER_PUSHED="$PUSHED_DIGEST"
   rm -f "$FAKE_CURL_LOG" "$FAKE_GH_LOG" "$FAKE_DOCKER_LOG" "$T/out" "$T/err"
   RC=""

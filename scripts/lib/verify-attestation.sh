@@ -31,8 +31,13 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 2
 fi
 
-if gh attestation verify "oci://$image" --repo "$repo" --signer-workflow "$signer" \
-  --source-ref "$source_ref" --deny-self-hosted-runners >&2; then
-  exit 0
+readonly SUBJECTS='.[].verificationResult.statement.subject[] | "\(.name) sha256:\(.digest.sha256)"'
+if ! subjects="$(gh attestation verify "oci://$image" --repo "$repo" --signer-workflow "$signer" \
+  --source-ref "$source_ref" --deny-self-hosted-runners --format json --jq "$SUBJECTS")"; then
+  exit 1
 fi
-exit 1
+if ! grep -Fxq -- "${image%@*} ${image##*@}" <<<"$subjects"; then
+  printf 'verify-attestation: no verified attestation names %s as its subject\n' "$image" >&2
+  exit 1
+fi
+exit 0

@@ -4,7 +4,8 @@
 TOKEN_URL="https://ghcr.io/token?scope=repository:autonomy-logic/autonomy-base:pull"
 MANIFEST_REQ="https://ghcr.io/v2/autonomy-logic/autonomy-base/manifests/trixie-1 Authorization: Bearer x"
 IMAGE="ghcr.io/autonomy-logic/autonomy-base"
-GH_CALL="attestation verify oci://$IMAGE@$DIGEST --repo Autonomy-Logic/autonomy-docker --signer-workflow $SIGNER --source-ref $SOURCE_REF --deny-self-hosted-runners"
+SUBJECTS='.[].verificationResult.statement.subject[] | "\(.name) sha256:\(.digest.sha256)"'
+GH_CALL="attestation verify oci://$IMAGE@$DIGEST --repo Autonomy-Logic/autonomy-docker --signer-workflow $SIGNER --source-ref $SOURCE_REF --deny-self-hosted-runners --format json --jq $SUBJECTS"
 
 case_01_tag_digest_maps_registry_answers() {
   sub "manifest 200 prints the digest"
@@ -143,6 +144,22 @@ case_04_verify_attestation_pins_signer_ref_and_runner() {
 
   sub "any gh failure counts as not verified"
   attestation 4
+  run_script "$VERIFY_ATTESTATION" "$IMAGE@$DIGEST" "$SIGNER" "$SOURCE_REF"
+  expect_rc 1
+  expect_stdout
+
+  sub "a digest attested under another package name is not verified"
+  attestation 0
+  export FAKE_GH_SUBJECT="ghcr.io/autonomy-logic/autonomy-python-base $DIGEST"
+  run_script "$VERIFY_ATTESTATION" "$IMAGE@$DIGEST" "$SIGNER" "$SOURCE_REF"
+  expect_rc 1
+  expect_stdout
+  expect_stderr_has "no verified attestation names $IMAGE@$DIGEST as its subject"
+  expect_gh "$GH_CALL"
+
+  sub "the subject must carry the same digest"
+  attestation 0
+  export FAKE_GH_SUBJECT="$IMAGE $PUSHED_DIGEST"
   run_script "$VERIFY_ATTESTATION" "$IMAGE@$DIGEST" "$SIGNER" "$SOURCE_REF"
   expect_rc 1
   expect_stdout

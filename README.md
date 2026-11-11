@@ -202,8 +202,9 @@ A push to `main` or a manual run of `build.yml` on `main` publishes the tags tha
 | `scripts/verify-parent.sh <registry> <package> <tag> <signer-workflow> <source-ref>` | stdout `<ref>@<digest>`, the attested parent | the parent tag is absent, or its digest is not attested; stderr names the tag and the digest | registry or tool error |
 
 The signer is `Autonomy-Logic/autonomy-docker/.github/workflows/build.yml` on `refs/heads/main`. The attestation is
-verified with `gh attestation verify --signer-workflow --source-ref --deny-self-hosted-runners`. With `REGISTRY_TOKEN`
-set, the registry is queried with that credential, which also sees a private package.
+verified with `gh attestation verify --signer-workflow --source-ref --deny-self-hosted-runners`, and it must name the
+checked package and digest as its subject, so a digest attested for another base does not count. With
+`REGISTRY_TOKEN` set, the registry is queried with that credential, which also sees a private package.
 
 A new package is private until a repository admin makes it public. When a push succeeds and its attestation fails,
 the tag exists unattested and every later run stops at `plan`; a repository admin deletes that version, then the
