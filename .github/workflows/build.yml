@@ -189,3 +189,38 @@ jobs:
               printf 'built on `%s`\n' "$PARENT"
             fi
           } >>"$GITHUB_STEP_SUMMARY"
+
+  probe:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Log in to the registry
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Probe the registry and the attestation API
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          echo "== tag-digest, package that does not exist"
+          scripts/lib/tag-digest.sh "$REGISTRY" autonomy-base trixie-1; echo "rc=$?"
+          echo "== tag-digest, existing public package"
+          scripts/lib/tag-digest.sh "$REGISTRY" autonomy-base-abuse-test trixie-1; echo "rc=$?"
+          echo "== existing-tag, existing unattested tag"
+          scripts/existing-tag.sh "$REGISTRY" autonomy-base-abuse-test trixie-1 "$SIGNER" "$SOURCE_REF"; echo "rc=$?"
+          echo "== attestation API status"
+          gh api -i "repos/$GITHUB_REPOSITORY/attestations/sha256:038f640bcd59e4821c9d4b4ab2375a9204605365042b5ee02ccd8ec3f9f59fdf" 2>&1 | head -3
+          echo "== publish-plan"
+          scripts/publish-plan.sh "$REGISTRY" "$SIGNER" "$SOURCE_REF"; echo "rc=$?"
+          gh --version | head -1
