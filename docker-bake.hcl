@@ -26,8 +26,16 @@ variable "PYTHON_TAG" {
   default = "dev"
 }
 
+variable "NODE_PACKAGE" {
+  default = "autonomy-node-base"
+}
+
+variable "NODE_TAG" {
+  default = "dev"
+}
+
 group "default" {
-  targets = ["root", "python"]
+  targets = ["root", "python", "node"]
 }
 
 target "_common" {
@@ -51,6 +59,19 @@ target "python" {
   inherits = ["_common"]
   context  = "python"
   tags     = ["${REGISTRY}/${PYTHON_PACKAGE}:${PYTHON_TAG}"]
+  contexts = {
+    parent = ROOT_DIGEST == "" ? "target:root" : "docker-image://${REGISTRY}/${ROOT_PACKAGE}:${ROOT_TAG}@${ROOT_DIGEST}"
+  }
+  labels = {
+    "org.opencontainers.image.base.name"   = "${REGISTRY}/${ROOT_PACKAGE}:${ROOT_TAG}"
+    "org.opencontainers.image.base.digest" = ROOT_DIGEST
+  }
+}
+
+target "node" {
+  inherits = ["_common"]
+  context  = "node"
+  tags     = ["${REGISTRY}/${NODE_PACKAGE}:${NODE_TAG}"]
   contexts = {
     parent = ROOT_DIGEST == "" ? "target:root" : "docker-image://${REGISTRY}/${ROOT_PACKAGE}:${ROOT_TAG}@${ROOT_DIGEST}"
   }

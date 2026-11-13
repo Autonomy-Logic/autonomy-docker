@@ -11,6 +11,7 @@ The central repository that builds the base images of the Autonomy Node product 
 | --- | --- | --- | --- | --- |
 | `root` | `ghcr.io/autonomy-logic/autonomy-base` | `trixie-1` | Debian 13 slim, dpkg path excludes (docs, man pages, locales, sanitizer runtimes), apt on the Debian snapshot `20261110T000000Z`, `ca-certificates` | `debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2` |
 | `python` | `ghcr.io/autonomy-logic/autonomy-python-base` | `py3.13-trixie-1` | `root` plus Debian `python3` 3.13 and `libpython3.13` | `root` |
+| `node` | `ghcr.io/autonomy-logic/autonomy-node-base` | `node22-trixie-1` | `root` plus the Node.js 22 binary of `node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee`, `stunnel4` (also as `stunnel`, with `systemd-standalone-sysusers` in place of systemd), `openssl`, `git` without perl and its unused helpers, `wget`, `libatomic1` | `root` |
 
 Every image is built for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. A product pins a base by tag and digest,
 `FROM <package>:<tag>@sha256:<digest>`; the publish run prints that line in its summary.
@@ -32,8 +33,7 @@ Every image is built for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. A prod
 | `.github/workflows/build.yml` | Pull request checks and the publish jobs. |
 | `.github/workflows/drift.yml` | Drift check. |
 
-The `node`, `runtime`, `orchestrator` and `netmon` directories and `drift.yml` are planned and not in the repository
-yet.
+The `runtime`, `orchestrator` and `netmon` directories and `drift.yml` are planned and not in the repository yet.
 
 ## Base-image policy
 
@@ -43,6 +43,10 @@ yet.
   update the snapshot holds for the packages of the upstream image.
 - An upstream digest or the snapshot changes only through a reviewed pull request that bumps `root/VERSION` and the
   `VERSION` of every descendant. Until that bump, no Debian update reaches the images.
+- The node image copies only the `node` binary from an upstream Node.js image pinned by digest; that digest changes
+  only through a reviewed pull request that bumps `node/VERSION`.
+- The node image removes perl with `dpkg --purge --force-depends`, which leaves unmet dpkg dependencies: an image
+  built on it must not run `apt-get install`.
 - A child image names its parent as the build context `parent` (`FROM parent`); `docker-bake.hcl` resolves it. The
   labels `org.opencontainers.image.base.name` and `org.opencontainers.image.base.digest` of a published child hold the
   tag and the digest of the parent it was built on.
