@@ -27,7 +27,7 @@
 ```sh
 tests/check-versions/run.sh
 tests/publish-checks/run.sh
-shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh tests/*/*.sh
+shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh tests/*/*.sh node/*.sh
 scripts/check-versions.sh --base origin/main --head HEAD
 SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)" docker buildx bake
 ```

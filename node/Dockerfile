@@ -4,7 +4,6 @@ FROM parent
 
 COPY --from=node-upstream /usr/local/bin/node /usr/local/bin/node
 
-# perl is purged with --force-depends: an image built on this one must not apt-get install.
 RUN --mount=type=bind,source=git-smoke.sh,target=/usr/local/sbin/git-smoke.sh \
     apt-get update && \
     apt-get install -y --no-install-recommends systemd-standalone-sysusers stunnel4 openssl git wget libatomic1 && \

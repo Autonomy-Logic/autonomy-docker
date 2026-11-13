@@ -45,7 +45,6 @@ git ls-tree -r --name-only HEAD | grep -q main-only
 git branch --contains HEAD --format='%(refname:short)' | grep -q main
 git branch -q -D other
 
-# No server listens here: a connection error proves the HTTP transport loads.
 remote="$(git ls-remote http://127.0.0.1:9/smoke.git 2>&1 || true)"
 echo "$remote" | grep -qi 'connect' || { echo "git HTTP transport broken: $remote" >&2; exit 1; }
 
