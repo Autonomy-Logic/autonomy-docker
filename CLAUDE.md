@@ -8,7 +8,7 @@
 ## Layout
 
 - `images.conf`: the image list, one `<dir> <package> <parent-dir or ->` row per image.
-- `<dir>/Dockerfile`, `<dir>/VERSION`: one directory per image (`root`, `python`).
+- `<dir>/Dockerfile`, `<dir>/VERSION`: one directory per image (`root`, `python`, `node`).
 - `docker-bake.hcl`: the build graph; a child builds on the context `parent`.
 - `scripts/check-versions.sh`: pull request gate for the `VERSION` rules.
 - `scripts/existing-tag.sh`, `scripts/verify-parent.sh`: attestation checks of an existing tag and of a parent.
@@ -27,7 +27,7 @@
 ```sh
 tests/check-versions/run.sh
 tests/publish-checks/run.sh
-shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh tests/*/*.sh
+shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh tests/*/*.sh node/*.sh
 scripts/check-versions.sh --base origin/main --head HEAD
 SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)" docker buildx bake
 ```
