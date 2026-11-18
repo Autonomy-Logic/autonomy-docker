@@ -1,0 +1,36 @@
+{
+  "product": "autonomy-docker",
+  "title": "Autonomy Docker Base Images",
+  "subtitle": "base images of the Autonomy Node product images — autonomy-base, autonomy-python-base, autonomy-node-base",
+  "assessedAt": "2026-11",
+  "sbomBasename": "autonomy-base",
+  "ecosystem": "Debian 13 (dpkg)",
+  "securityContact": "Thiago Alves — thiago.alves@autonomylogic.com",
+  "advisorySource": "Debian Security Tracker and other OSV sources via osv-scanner (OSV) image scanning",
+  "_note_ids": "Every triage entry lists the advisory ids it accounts for. build-report.mjs cross-checks the live post-suppression scan against these: an advisory no entry claims is reported in section 4a as untriaged.",
+  "_note_counts": "advisories/counts describe the last FULL assessment (assessedAt) and are only rendered when the report is built without a live scan. With --osv-raw/--osv-delta the numbers come from that run.",
+  "advisories": { "total": 0, "critical": 0, "high": 0, "moderate": 0, "low": 0 },
+  "counts": {
+    "affected": { "n": 0, "sev": "none recorded" },
+    "mitigated": { "n": 0, "sev": "—" },
+    "notAffected": { "n": 0, "pct": "—" }
+  },
+  "headline": "Initial baseline. No triage decision has been recorded yet; the figures in the Key metrics table come from the live scan of this run, and any advisory it surfaces is listed as untriaged until it is assessed.",
+  "scope": "This repository builds the base images of the Autonomy Node product images and publishes them to <code>ghcr.io/autonomy-logic</code>: <code>autonomy-base</code> (Debian 13 slim on a pinned Debian snapshot), and <code>autonomy-python-base</code> and <code>autonomy-node-base</code> built on it. This assessment covers the Debian packages installed in every image listed in <code>images.conf</code>, built from this commit for linux/amd64. Package names carry the image as a prefix, e.g. <code>autonomy-node-base/curl</code>.",
+  "scopeNote": "Not covered by the scan: the Node.js binary that <code>autonomy-node-base</code> copies from the pinned <code>node:22-bookworm-slim</code> image (it is listed in the SBOM, but OSV has no Node.js runtime advisories), and the linux/arm64 and linux/arm/v7 builds, which install the same Debian package versions from the same snapshot.",
+  "methodologyNote": "Each image is built with <code>docker buildx bake</code> from the committed Dockerfiles for linux/amd64 and exported as an image archive. osv-scanner reads the dpkg database of each archive and checks the Debian packages against OSV. Debian advisories are reported against the Debian source package. Because apt reads a pinned Debian snapshot, the same commit always yields the same package versions.",
+  "licenseNote": "Licences are read from the machine-readable Debian copyright file of each package and listed per component in the SBOM CSV. No licence review has been recorded yet.",
+  "affected": [],
+  "mitigated": [],
+  "notAffected": [],
+  "criticalNote": "No critical-severity assessment has been recorded yet; see the live scan figures and section 4a.",
+  "remediation": [
+    "<b>Recommended:</b> raise <code>DEBIAN_SNAPSHOT</code> in <code>root/Dockerfile</code> (with the <code>VERSION</code> bump cascade) to pick up Debian security updates."
+  ],
+  "practices": [
+    { "practice": "Upstream images pinned by digest and apt pinned to a Debian snapshot", "status": "In place" },
+    { "practice": "SBOM generated per release in CycloneDX and SPDX", "status": "In place" },
+    { "practice": "PR gate blocks newly introduced critical advisories", "status": "In place" },
+    { "practice": "Monthly vulnerability scan with report", "status": "In place" }
+  ]
+}

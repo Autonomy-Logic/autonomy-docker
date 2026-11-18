@@ -18,6 +18,9 @@
 - `tests/check-versions/`, `tests/publish-checks/`: plain bash tests of the scripts; `run.sh` is the entry point.
 - `tests/<dir>/run.sh <image> <platform>`: smoke test of an image; `tests/smoke.sh` and `tests/reproducible.sh`
   build every image.
+- `scripts/build-images.sh`, `scripts/scan-images.sh`, `scripts/generate-sbom.sh` and the `.mjs` scripts: the SBOM and
+  vulnerability flows (`.github/workflows/security-*.yml`), documented in `security/README.md`; their tests are
+  `scripts/__tests__/security-scripts.test.mjs` (`node --test`). `osv-scanner.toml` is the VEX baseline.
 - `.github/workflows/build.yml`: pull request checks, with the job `ci` as the single gate check, and the publish
   jobs `plan` and `publish`.
 - `.github/CODEOWNERS`, `.github/dependabot.yml`, `SECURITY.md`, `LICENSE`.
@@ -27,6 +30,7 @@
 ```sh
 tests/check-versions/run.sh
 tests/publish-checks/run.sh
+node --test scripts/__tests__/security-scripts.test.mjs
 shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh tests/*/*.sh node/*.sh
 scripts/check-versions.sh --base origin/main --head HEAD
 SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)" docker buildx bake

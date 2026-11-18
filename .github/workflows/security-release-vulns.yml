@@ -1,0 +1,103 @@
+name: Security — release vulnerability report
+
+# Vulnerability flow, release part: once per release (a commit landing on main), independent of the SBOM flow.
+# Builds every image in images.conf for linux/amd64, scans their Debian packages with osv-scanner (honoring the VEX
+# baseline in osv-scanner.toml) and archives vulnerabilities.csv and the report (md, html, pdf) on security-archive,
+# next to the SBOM of the same release. A dispatch from any ref other than main writes security-archive-test.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "security/**"
+      - "osv-scanner.toml"
+  workflow_dispatch:
+    inputs:
+      archive_branch:
+        description: "Archive branch (must start with security-archive)"
+        required: true
+        default: security-archive-test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-release-vulns-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  OSV_VERSION: v2.4.0
+
+jobs:
+  vulns:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      ARCHIVE_BRANCH: ${{ inputs.archive_branch || (github.ref == 'refs/heads/main' && 'security-archive' || 'security-archive-test') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+
+      - name: Install osv-scanner
+        run: |
+          base="https://github.com/google/osv-scanner/releases/download/$OSV_VERSION"
+          curl -sSfL "$base/osv-scanner_linux_amd64" -o "$RUNNER_TEMP/osv-scanner_linux_amd64"
+          curl -sSfL "$base/osv-scanner_SHA256SUMS" -o "$RUNNER_TEMP/osv_SHA256SUMS"
+          (cd "$RUNNER_TEMP" && grep ' osv-scanner_linux_amd64$' osv_SHA256SUMS | sha256sum -c -)
+          sudo install -m 0755 "$RUNNER_TEMP/osv-scanner_linux_amd64" /usr/local/bin/osv-scanner
+
+      - name: Build every image
+        run: |
+          mkdir -p "$RUNNER_TEMP/images"
+          scripts/build-images.sh . sbom.local "$RUNNER_TEMP/images" >"$RUNNER_TEMP/images/images.txt"
+
+      - name: Scan the images with and without the VEX baseline
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          scripts/scan-images.sh "$RUNNER_TEMP/images" "$RUNNER_TEMP/osv.json" osv-scanner.toml
+          scripts/scan-images.sh "$RUNNER_TEMP/images" "$RUNNER_TEMP/osv-raw.json"
+          node scripts/scan-vulns.mjs "$RUNNER_TEMP/osv.json" "$RUNNER_TEMP/out/vulnerabilities.csv"
+
+      - name: Build the report
+        id: report
+        run: |
+          node scripts/build-report.mjs \
+            --config security/report-config.json \
+            --osv-raw "$RUNNER_TEMP/osv-raw.json" \
+            --osv-delta "$RUNNER_TEMP/osv.json" \
+            --out "$RUNNER_TEMP/out" \
+            --date "$(TZ=UTC git log -1 --date=format-local:%Y-%m-%d --format=%cd)"
+
+      - uses: browser-actions/setup-chrome@c785b87e244131f27c9f19c1a33e2ead956ab7ce
+        id: chrome
+
+      - name: Render the PDF
+        env:
+          REPORT: ${{ steps.report.outputs.html }}
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          if [ ! -f "$REPORT" ]; then
+            echo "::error::report HTML not found at '$REPORT'"
+            exit 1
+          fi
+          "$CHROME" --headless=new --no-sandbox --disable-dev-shm-usage \
+            --disable-javascript --disable-gpu --no-pdf-header-footer \
+            --run-all-compositor-stages-before-draw --virtual-time-budget=5000 \
+            --print-to-pdf="${REPORT%.html}.pdf" "file://$REPORT"
+
+      - name: Archive the report with this release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_PROVENANCE: PROVENANCE-vulns.txt
+        run: |
+          dir="$(scripts/security-archive.sh dir)"
+          scripts/security-archive.sh publish "$dir" "$RUNNER_TEMP"/out/*
+          echo "Archived to $ARCHIVE_BRANCH/$dir" >>"$GITHUB_STEP_SUMMARY"
