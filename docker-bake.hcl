@@ -26,6 +26,10 @@ variable "PYTHON_TAG" {
   default = "dev"
 }
 
+variable "PYTHON_DIGEST" {
+  default = ""
+}
+
 variable "NODE_PACKAGE" {
   default = "autonomy-node-base"
 }
@@ -34,8 +38,16 @@ variable "NODE_TAG" {
   default = "dev"
 }
 
+variable "RUNTIME_PACKAGE" {
+  default = "openplc-runtime-base"
+}
+
+variable "RUNTIME_TAG" {
+  default = "dev"
+}
+
 group "default" {
-  targets = ["root", "python", "node"]
+  targets = ["root", "python", "node", "runtime"]
 }
 
 target "_common" {
@@ -78,5 +90,18 @@ target "node" {
   labels = {
     "org.opencontainers.image.base.name"   = "${REGISTRY}/${ROOT_PACKAGE}:${ROOT_TAG}"
     "org.opencontainers.image.base.digest" = ROOT_DIGEST
+  }
+}
+
+target "runtime" {
+  inherits = ["_common"]
+  context  = "runtime"
+  tags     = ["${REGISTRY}/${RUNTIME_PACKAGE}:${RUNTIME_TAG}"]
+  contexts = {
+    parent = PYTHON_DIGEST == "" ? "target:python" : "docker-image://${REGISTRY}/${PYTHON_PACKAGE}:${PYTHON_TAG}@${PYTHON_DIGEST}"
+  }
+  labels = {
+    "org.opencontainers.image.base.name"   = "${REGISTRY}/${PYTHON_PACKAGE}:${PYTHON_TAG}"
+    "org.opencontainers.image.base.digest" = PYTHON_DIGEST
   }
 }

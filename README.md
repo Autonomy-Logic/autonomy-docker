@@ -12,6 +12,7 @@ The central repository that builds the base images of the Autonomy Node product 
 | `root` | `ghcr.io/autonomy-logic/autonomy-base` | `trixie-1` | Debian 13 slim, dpkg path excludes (docs, man pages, locales, sanitizer runtimes), apt on the Debian snapshot `20261110T000000Z`, `ca-certificates` | `debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2` |
 | `python` | `ghcr.io/autonomy-logic/autonomy-python-base` | `py3.13-trixie-1` | `root` plus Debian `python3` 3.13 and `libpython3.13` | `root` |
 | `node` | `ghcr.io/autonomy-logic/autonomy-node-base` | `node22-trixie-1` | `root` plus the Node.js 22 binary of `node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee`, `stunnel4` (also as `stunnel`, with `systemd-standalone-sysusers` in place of systemd), `openssl`, `git` without perl and its unused helpers, `wget`, `libatomic1` | `root` |
+| `runtime` | `ghcr.io/autonomy-logic/openplc-runtime-base` | `trixie-1` | `python` plus `g++` 14, `make`, `ccache`, `ethtool`, `curl` and the directory `/var/run/runtime` | `python` |
 
 Every image is built for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. A product pins a base by tag and digest,
 `FROM <package>:<tag>@sha256:<digest>`; the publish run prints that line in its summary.
@@ -33,7 +34,7 @@ Every image is built for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. A prod
 | `.github/workflows/build.yml` | Pull request checks and the publish jobs. |
 | `.github/workflows/drift.yml` | Drift check. |
 
-The `runtime`, `orchestrator` and `netmon` directories and `drift.yml` are planned and not in the repository yet.
+The `orchestrator` and `netmon` directories and `drift.yml` are planned and not in the repository yet.
 
 ## Base-image policy
 
