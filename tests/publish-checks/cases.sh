@@ -499,3 +499,34 @@ case_19_publish_image_fails_on_bad_input_or_a_failed_build() {
   expect_stdout
   expect_docker
 }
+
+case_20_publish_image_builds_a_child_of_a_child_on_its_own_parent() {
+  local python_call="${GH_CALL/"$IMAGE@"/"$PYTHON_IMAGE@"}"
+
+  sub "parent attested"
+  runtime_fixture
+  registry 200 404 "$DIGEST"
+  registry_package autonomy-python-base 200
+  attestation 0
+  run_script "$PUBLISH_IMAGE" "$REGISTRY" "$SIGNER" "$SOURCE_REF" runtime
+  expect_rc 0
+  expect_stdout "pushed $REGISTRY/openplc-runtime-base:trixie-1@$PUSHED_DIGEST" \
+    "parent $PYTHON_IMAGE:py3.13-trixie-1@$DIGEST"
+  expect_gh "$python_call"
+  expect_docker "buildx bake runtime --push --provenance=mode=max --sbom=$SBOM --metadata-file <metadata>" \
+    "PYTHON_DIGEST=$DIGEST" "PYTHON_PACKAGE=autonomy-python-base" "PYTHON_TAG=py3.13-trixie-1" \
+    "REGISTRY=$REGISTRY" "RUNTIME_PACKAGE=openplc-runtime-base" "RUNTIME_TAG=trixie-1" \
+    "SOURCE_DATE_EPOCH=1794347526"
+
+  sub "parent not attested"
+  runtime_fixture
+  registry 200 404 "$DIGEST"
+  registry_package autonomy-python-base 200
+  attestation 1
+  run_script "$PUBLISH_IMAGE" "$REGISTRY" "$SIGNER" "$SOURCE_REF" runtime
+  expect_rc 1
+  expect_stdout
+  expect_stderr_has "py3.13-trixie-1" "$DIGEST"
+  expect_gh "$python_call"
+  expect_docker
+}

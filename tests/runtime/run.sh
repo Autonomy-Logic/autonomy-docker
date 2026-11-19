@@ -20,10 +20,11 @@ esac
 docker run --rm --network none --platform "$2" "$1" sh -euc '
   check() { "$@" || { echo "not ok: $*" >&2; exit 1; }; }
   check test "$(dpkg --print-architecture)" = "$1"
-  for tool in g++ gcc make ccache ethtool curl python3; do
+  for tool in g++ gcc make ccache ethtool curl openssl python3; do
     check test -n "$(command -v "$tool")"
   done
   check test "$(g++ -dumpversion)" = 14
+  check python3 -c "import sys; assert sys.version_info[:2] == (3, 13), sys.version"
   check test "$(stat -c %a /var/run/runtime)" = 775
   check test -z "$(ls -A /var/lib/apt/lists)"
   check test -z "$(ls -A /var/log)"
