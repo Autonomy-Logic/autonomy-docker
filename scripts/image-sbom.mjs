@@ -102,7 +102,7 @@ if (added.length) console.log(`image-sbom: added from the dpkg database (not rep
 for (const c of components) {
   if (c.tags) c.tags = c.tags.filter((t) => t !== 'source');
   if (c.tags && !c.tags.length) delete c.tags;
-  if (isDeb(c) && !c.supplier && !c.manufacturer && !c.publisher) {
+  if (isDeb(c)) {
     const supplier = maintainerSupplier(installed.get(c.name)?.maintainer);
     if (supplier) c.supplier = supplier;
   }

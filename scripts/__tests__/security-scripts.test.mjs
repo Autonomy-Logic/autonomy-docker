@@ -598,7 +598,7 @@ function imageSbom(installed, copyrights) {
   const deb = (name, extra = {}) => ({ 'bom-ref': `pkg:deb/debian/${name}@1?arch=amd64&distro=debian-13&distro_name=trixie`, type: 'library', name, version: '1', purl: `pkg:deb/debian/${name}@1?arch=amd64&distro=debian-13&distro_name=trixie`, ...extra });
   const input = w('raw.cdx.json', {
     bomFormat: 'CycloneDX', specVersion: '1.6', metadata: { component: { 'bom-ref': 'pkg:container/w@latest', name: 'w' } },
-    components: [deb('bash'), deb('util-linux', { tags: ['source'] }), deb('openssl', { tags: ['security', 'source'] }),
+    components: [deb('bash'), deb('util-linux', { tags: ['source'] }), deb('openssl', { tags: ['security', 'source'], supplier: { name: 'Old Maintainer <old@debian.org>' } }),
       { name: 'libc.so.6', type: 'file', purl: 'pkg:generic/libc.so.6', 'bom-ref': 'pkg:generic/libc.so.6' }],
     dependencies: [{ ref: 'pkg:container/w@latest', dependsOn: [deb('bash')['bom-ref'], 'pkg:generic/libc.so.6'] }],
   });
@@ -673,11 +673,12 @@ test('security-archive: publishes and leaves no work directory behind', () => {
 });
 
 test('image-sbom: a Debian package takes its dpkg Maintainer as supplier and the image Autonomy Logic, both reach the SPDX', () => {
-  const { r, bom } = imageSbom('bash\t5.2\tamd64\tMatthias Klose <doko@debian.org>\nca-certificates\t2025\tall\tDebian\n', {});
+  const { r, bom } = imageSbom('bash\t5.2\tamd64\tMatthias Klose <doko@debian.org>\nopenssl\t3.5\tamd64\tDebian OpenSSL Team <openssl@debian.org>\nca-certificates\t2025\tall\tDebian\n', {});
   assert.equal(r.status, 0, r.stderr);
   const sup = (n) => bom.components.find((c) => c.name === n).supplier;
   assert.deepEqual(sup('bash'), { name: 'Matthias Klose', contact: [{ email: 'doko@debian.org' }] });
   assert.deepEqual(sup('ca-certificates'), { name: 'Debian' });
+  assert.deepEqual(sup('openssl'), { name: 'Debian OpenSSL Team', contact: [{ email: 'openssl@debian.org' }] }, 'dpkg replaces the cdxgen value');
   const cdx = w('sup.cdx.json', bom);
   const spdx = join(dir, 'sup.spdx.json');
   assert.equal(run('cdx-to-spdx.mjs', [cdx, spdx]).status, 0);
