@@ -4,6 +4,15 @@
 //   node scripts/merge-image-scans.mjs <out.json> [<image>=<osv.json>]...
 import { readFileSync, writeFileSync } from 'node:fs';
 
+// Keeps only the affected[] entries of the scanned package, which the image prefix would hide from fixedOf.
+function ownAffected(v, name, ecosystem) {
+  const norm = (n) => String(n ?? '').toLowerCase().replace(/[-_.]+/g, '-');
+  const eco = (e) => String(e ?? '').split(':')[0].toLowerCase();
+  const mine = (v.affected || []).filter((a) => norm(a.package?.name) === norm(name)
+    && (!ecosystem || !a.package?.ecosystem || eco(a.package.ecosystem) === eco(ecosystem)));
+  return mine.length ? { ...v, affected: mine } : v;
+}
+
 const [out, ...pairs] = process.argv.slice(2);
 if (!out) { console.error('usage: merge-image-scans.mjs <out.json> [<image>=<osv.json>]...'); process.exit(2); }
 
@@ -34,7 +43,7 @@ for (const pair of pairs) {
       const versions = String(merged.package.version || '').split(', ').filter(Boolean);
       if (version && !versions.includes(version)) merged.package.version = [...versions, version].join(', ');
       for (const v of (p.vulnerabilities || [])) {
-        if (!merged.vulnerabilities.some((x) => x.id === v.id)) merged.vulnerabilities.push(v);
+        if (!merged.vulnerabilities.some((x) => x.id === v.id)) merged.vulnerabilities.push(ownAffected(v, p.package?.name, p.package?.ecosystem));
       }
       for (const g of (p.groups || [])) {
         if (!merged.groups.some((x) => JSON.stringify(x.ids) === JSON.stringify(g.ids))) merged.groups.push(g);

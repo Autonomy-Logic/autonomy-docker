@@ -148,6 +148,10 @@ jobs:
         env:
           MONTH: ${{ steps.m.outputs.month }}
         run: |
+          if [ -n "$(git status --porcelain -- osv-scanner.toml)" ]; then
+            scripts/scan-images.sh "$RUNNER_TEMP/images" /tmp/osv.json osv-scanner.toml
+            node scripts/scan-vulns.mjs /tmp/osv.json /tmp/out/vulnerabilities.csv
+          fi
           node scripts/build-report.mjs \
             --config security/report-config.json \
             --osv-raw /tmp/osv-raw.json \
