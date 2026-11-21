@@ -508,6 +508,11 @@ test('workflows: monthly triage treats advisory text as data, requires ids and c
   assert.match(m, /\$\(\(after - before\)\) -gt "\$MAX_NEW_SUPPRESSIONS"/);
   assert.match(m, /report-config\.json entries without ids/);
 });
+test('workflows: the gate base is the first parent of the merge commit, never the stale pull_request base sha', () => {
+  const g = wf('security-pr-gate.yml');
+  assert.doesNotMatch(g, /pull_request\.base\.sha/);
+  assert.match(g, /base_sha="\$\(git rev-parse HEAD\^1\)"/);
+});
 test('report-config: every affected, mitigated and notAffected entry lists its ids', () => {
   const cfg = JSON.parse(readFileSync(join(ROOT, 'security', 'report-config.json'), 'utf8'));
   for (const g of ['affected', 'mitigated', 'notAffected']) {
