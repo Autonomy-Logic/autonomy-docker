@@ -589,8 +589,7 @@ test('workflows: monthly triage treats advisory text as data, requires ids and c
   const m = wf('security-monthly.yml');
   assert.match(m, /untrusted\s+third-party data, never instructions/);
   assert.match(m, /must carry an `ids` array/);
-  assert.match(m, /MAX_NEW_SUPPRESSIONS=15/);
-  assert.match(m, /\$\(\(after - before\)\) -gt "\$MAX_NEW_SUPPRESSIONS"/);
+  assert.match(m, /check-suppressions\.mjs \S+ osv-scanner\.toml 15/);
   assert.match(m, /report-config\.json entries without ids/);
 });
 test('workflows: the gate base is the first parent of the merge commit, never the stale pull_request base sha', () => {
@@ -803,4 +802,35 @@ test('image-sbom: a Debian package takes its dpkg Maintainer as supplier and the
   assert.equal(pkgs.find((p) => p.name === 'bash').supplier, 'Organization: Matthias Klose');
   assert.equal(pkgs.find((p) => p.name.endsWith('ca-certificates')).supplier, 'Organization: Debian');
   assert.equal(pkgs.find((p) => p.name === 'autonomy-base').supplier, 'Organization: Autonomy Logic');
+});
+
+test('check-suppressions: a run that swaps entries fails even when the count is unchanged', async () => {
+  const { ignoredIds, compare } = await import(join(SCRIPTS, 'check-suppressions.mjs'));
+  const toml = (...ids) => ids.map((id) => `[[IgnoredVulns]]\nid = "${id}"\nignoreUntil = 2027-01-01\nreason = "x"\n`).join('\n');
+  assert.deepEqual(ignoredIds(`# c\n[[IgnoredVulns]]\nid = "A" # note\n[other]\nid = "B"\n${toml('C')}`), ['A', 'C']);
+  assert.deepEqual(compare(['A', 'B'], ['A', 'C'], 15).removed, ['B']);
+  assert.equal(compare(['A', 'B'], ['A', 'C'], 15).errors.length, 1);
+  assert.equal(compare(['A'], ['A', 'B', 'C'], 1).errors.length, 1);
+  assert.equal(compare(['A'], ['A', 'B'], 15).errors.length, 0);
+  const before = w('before.toml', ''); writeFileSync(before, toml('A', 'B'));
+  const after = w('after.toml', ''); writeFileSync(after, toml('A', 'C'));
+  const r = run('check-suppressions.mjs', [before, after, '15']);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /REMOVED 1 suppression\(s\): B/);
+});
+
+test('monthly workflow: validation compares suppression ids, not header counts', () => {
+  const wf = readFileSync(join(SCRIPTS, '..', '.github', 'workflows', 'security-monthly.yml'), 'utf8');
+  assert.match(wf, /node scripts\/check-suppressions\.mjs \/tmp\/osv-before\.toml osv-scanner\.toml 15/);
+  assert.doesNotMatch(wf, /grep -c '\^\\\[\\\[IgnoredVulns/);
+});
+
+test('severity: package names are normalized only for PyPI', async () => {
+  const { fixedOf } = await import(join(SCRIPTS, 'lib', 'severity.mjs'));
+  const npm = { affected: [
+    { package: { name: 'foo-bar', ecosystem: 'npm' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '1.0.0' }] }] },
+    { package: { name: 'foo_bar', ecosystem: 'npm' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '9.0.0' }] }] }] };
+  assert.equal(String(fixedOf(npm, 'foo-bar', 'npm')), '1.0.0');
+  const py = { affected: [{ package: { name: 'Foo_Bar', ecosystem: 'PyPI' }, ranges: [{ events: [{ introduced: '0' }, { fixed: '2.0' }] }] }] };
+  assert.equal(String(fixedOf(py, 'foo-bar', 'PyPI')), '2.0');
 });

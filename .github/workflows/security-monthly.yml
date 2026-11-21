@@ -123,20 +123,8 @@ jobs:
           ai = sum(1 for e in entries if "AI-TRIAGED" in str(e.get("reason", "")))
           print(f"osv-scanner.toml OK: {len(entries)} suppressions ({ai} AI-triaged, pending human review).")
           PY
-          before="$(git show HEAD:osv-scanner.toml 2>/dev/null | grep -c '^\[\[IgnoredVulns\]\]' || true)"
-          after="$(grep -c '^\[\[IgnoredVulns\]\]' osv-scanner.toml || true)"
-          before="${before:-0}"
-          after="${after:-0}"
-          echo "Suppressions: $before -> $after"
-          if [ "$after" -lt "$before" ]; then
-            echo "::error::the triage step removed $((before - after)) suppression(s) from osv-scanner.toml"
-            exit 1
-          fi
-          MAX_NEW_SUPPRESSIONS=15
-          if [ $((after - before)) -gt "$MAX_NEW_SUPPRESSIONS" ]; then
-            echo "::error::the triage step added $((after - before)) suppressions (max $MAX_NEW_SUPPRESSIONS per run)"
-            exit 1
-          fi
+          git show HEAD:osv-scanner.toml > /tmp/osv-before.toml 2>/dev/null || : > /tmp/osv-before.toml
+          node scripts/check-suppressions.mjs /tmp/osv-before.toml osv-scanner.toml 15
           node -e '
             const c = JSON.parse(require("fs").readFileSync("security/report-config.json", "utf8"));
             const bad = ["affected", "mitigated", "notAffected"].flatMap((g) => (c[g] || [])
