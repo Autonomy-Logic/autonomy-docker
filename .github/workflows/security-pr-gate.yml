@@ -37,9 +37,6 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Test the security scripts
-        run: node --test scripts/__tests__/*.test.mjs
-
       - name: Install osv-scanner
         run: |
           base="https://github.com/google/osv-scanner/releases/download/$OSV_VERSION"
@@ -47,6 +44,9 @@ jobs:
           curl -sSfL "$base/osv-scanner_SHA256SUMS" -o "$RUNNER_TEMP/osv_SHA256SUMS"
           (cd "$RUNNER_TEMP" && grep ' osv-scanner_linux_amd64$' osv_SHA256SUMS | sha256sum -c -)
           sudo install -m 0755 "$RUNNER_TEMP/osv-scanner_linux_amd64" /usr/local/bin/osv-scanner
+
+      - name: Test the security scripts
+        run: node --test scripts/__tests__/*.test.mjs
 
       - name: Build and scan HEAD
         run: |

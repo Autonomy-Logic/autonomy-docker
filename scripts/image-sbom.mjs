@@ -69,6 +69,13 @@ function licensesOf(pkg) {
   return [{ expression: parts.map((p) => (/ /.test(p) && parts.length > 1 ? `(${p})` : p)).join(' AND ') }];
 }
 
+// CycloneDX supplier of a Debian package from its dpkg Maintainer field ("Name <email>").
+function maintainerSupplier(maintainer) {
+  const m = String(maintainer || '').match(/^\s*(.*?)\s*(?:<([^>]*)>)?\s*$/);
+  if (!m || !m[1]) return undefined;
+  return { name: m[1], ...(m[2] ? { contact: [{ email: m[2] }] } : {}) };
+}
+
 const bom = JSON.parse(readFileSync(args.in, 'utf8'));
 const oldRoot = bom.metadata?.component?.['bom-ref'];
 // dpkg-query lines: package, version, architecture, maintainer, tab separated.
@@ -86,7 +93,7 @@ for (const [name, d] of installed) {
     + `?arch=${d.arch}${distro ? `&${distro}` : ''}${epoch}`;
   components.push({
     'bom-ref': purl, type: 'library', name, version: d.version, purl, group: 'debian',
-    ...(d.maintainer ? { supplier: { name: d.maintainer } } : {}),
+    ...(maintainerSupplier(d.maintainer) ? { supplier: maintainerSupplier(d.maintainer) } : {}),
     properties: [{ name: 'autonomy:inventory', value: 'dpkg-status' }],
   });
   added.push(purl);
@@ -95,6 +102,10 @@ if (added.length) console.log(`image-sbom: added from the dpkg database (not rep
 for (const c of components) {
   if (c.tags) c.tags = c.tags.filter((t) => t !== 'source');
   if (c.tags && !c.tags.length) delete c.tags;
+  if (isDeb(c) && !c.supplier && !c.manufacturer && !c.publisher) {
+    const supplier = maintainerSupplier(installed.get(c.name)?.maintainer);
+    if (supplier) c.supplier = supplier;
+  }
   if (isDeb(c) && !(c.licenses || []).length) {
     const lic = licensesOf(c.name);
     if (lic.length) c.licenses = lic;

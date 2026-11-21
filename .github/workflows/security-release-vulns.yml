@@ -3,7 +3,8 @@ name: Security — release vulnerability report
 # Vulnerability flow, release part: once per release (a commit landing on main), independent of the SBOM flow.
 # Builds every image in images.conf for linux/amd64, scans their Debian packages with osv-scanner (honoring the VEX
 # baseline in osv-scanner.toml) and archives vulnerabilities.csv and the report (md, html, pdf) on security-archive,
-# next to the SBOM of the same release. A dispatch from any ref other than main writes security-archive-test.
+# next to the SBOM of the same release. The raw scan uses the empty security/osv-raw.toml. A dispatch from any ref
+# other than main writes archive_branch (default security-archive-test); main always writes security-archive.
 
 on:
   push:
@@ -14,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       archive_branch:
-        description: "Archive branch (must start with security-archive)"
+        description: "Archive branch for runs outside main (must start with security-archive-)"
         required: true
         default: security-archive-test
 
@@ -35,7 +36,7 @@ jobs:
     permissions:
       contents: write
     env:
-      ARCHIVE_BRANCH: ${{ inputs.archive_branch || (github.ref == 'refs/heads/main' && 'security-archive' || 'security-archive-test') }}
+      ARCHIVE_BRANCH: ${{ github.ref == 'refs/heads/main' && 'security-archive' || inputs.archive_branch || 'security-archive-test' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -63,7 +64,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/out"
           scripts/scan-images.sh "$RUNNER_TEMP/images" "$RUNNER_TEMP/osv.json" osv-scanner.toml
-          scripts/scan-images.sh "$RUNNER_TEMP/images" "$RUNNER_TEMP/osv-raw.json"
+          scripts/scan-images.sh "$RUNNER_TEMP/images" "$RUNNER_TEMP/osv-raw.json" security/osv-raw.toml
           node scripts/scan-vulns.mjs "$RUNNER_TEMP/osv.json" "$RUNNER_TEMP/out/vulnerabilities.csv"
 
       - name: Build the report

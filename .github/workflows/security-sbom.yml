@@ -2,7 +2,8 @@ name: Security — release SBOM
 
 # SBOM flow, once per release (a commit landing on main): CycloneDX 1.6, SPDX 2.3 and a component CSV for every
 # image in images.conf, archived on the orphan branch security-archive. No vulnerability scan runs here.
-# A dispatch from any ref other than main writes security-archive-test.
+# A dispatch from any ref other than main writes archive_branch (default security-archive-test); main always
+# writes security-archive.
 
 on:
   push:
@@ -13,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       archive_branch:
-        description: "Archive branch (must start with security-archive)"
+        description: "Archive branch for runs outside main (must start with security-archive-)"
         required: true
         default: security-archive-test
 
@@ -31,7 +32,7 @@ jobs:
     permissions:
       contents: write
     env:
-      ARCHIVE_BRANCH: ${{ inputs.archive_branch || (github.ref == 'refs/heads/main' && 'security-archive' || 'security-archive-test') }}
+      ARCHIVE_BRANCH: ${{ github.ref == 'refs/heads/main' && 'security-archive' || inputs.archive_branch || 'security-archive-test' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
