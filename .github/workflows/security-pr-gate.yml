@@ -1,0 +1,98 @@
+name: Security — PR gate
+
+# Builds the images of the BASE and the HEAD of the pull request for linux/amd64, scans their Debian packages and
+# blocks only on advisories the pull request introduces (in head, not in base) at or above GATE_THRESHOLD.
+# HEAD is the merge commit and BASE its first parent, the base branch the merge was computed on.
+# Pre-existing advisories never block. Both scans honor the head osv-scanner.toml. No SBOM and no report here.
+# To enforce the block, make the job "gate" a required status check.
+
+on:
+  pull_request:
+    branches: [main, development]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-pr-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  GATE_THRESHOLD: CRITICAL
+  OSV_VERSION: v2.4.0
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+
+      - name: Install osv-scanner
+        run: |
+          base="https://github.com/google/osv-scanner/releases/download/$OSV_VERSION"
+          curl -sSfL "$base/osv-scanner_linux_amd64" -o "$RUNNER_TEMP/osv-scanner_linux_amd64"
+          curl -sSfL "$base/osv-scanner_SHA256SUMS" -o "$RUNNER_TEMP/osv_SHA256SUMS"
+          (cd "$RUNNER_TEMP" && grep ' osv-scanner_linux_amd64$' osv_SHA256SUMS | sha256sum -c -)
+          sudo install -m 0755 "$RUNNER_TEMP/osv-scanner_linux_amd64" /usr/local/bin/osv-scanner
+
+      - name: Test the security scripts
+        run: node --test scripts/__tests__/*.test.mjs
+
+      - name: Build and scan HEAD
+        run: |
+          cp osv-scanner.toml "$RUNNER_TEMP/head-config.toml"
+          mkdir -p "$RUNNER_TEMP/head"
+          scripts/build-images.sh . sbom.local/head "$RUNNER_TEMP/head" >"$RUNNER_TEMP/head/images.txt"
+          scripts/scan-images.sh "$RUNNER_TEMP/head" "$RUNNER_TEMP/head.json" "$RUNNER_TEMP/head-config.toml"
+
+      - name: Build and scan BASE
+        run: |
+          base_sha="$(git rev-parse HEAD^1)"
+          echo "Base: $base_sha (first parent of the merge commit)"
+          git worktree add -f "$RUNNER_TEMP/base-src" "$base_sha"
+          mkdir -p "$RUNNER_TEMP/base"
+          scripts/build-images.sh "$RUNNER_TEMP/base-src" sbom.local/base "$RUNNER_TEMP/base" >"$RUNNER_TEMP/base/images.txt"
+          scripts/scan-images.sh "$RUNNER_TEMP/base" "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head-config.toml"
+
+      - name: Block on newly introduced advisories
+        env:
+          GATE_COMMENT_FILE: ${{ runner.temp }}/gate-comment.md
+          GATE_STATUS_FILE: ${{ runner.temp }}/gate-status
+        run: node scripts/pr-gate-diff.mjs "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json" "$GATE_THRESHOLD"
+
+      - name: Comment the result on the pull request
+        if: always() && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          comment="$RUNNER_TEMP/gate-comment.md"
+          status="$(cat "$RUNNER_TEMP/gate-status" 2>/dev/null || echo clean)"
+          cid="$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.body | contains("<!-- security-pr-gate -->")) | .id' | head -1)"
+          if [ "$status" = "clean" ] && [ -z "$cid" ]; then
+            echo "Clean and no existing comment, nothing to post."
+            exit 0
+          fi
+          if [ ! -f "$comment" ]; then
+            echo "No gate result to post."
+            exit 0
+          fi
+          if [ -n "$cid" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$cid" -F "body=@$comment" >/dev/null
+          else
+            gh pr comment "$PR" --repo "$REPO" --body-file "$comment"
+          fi

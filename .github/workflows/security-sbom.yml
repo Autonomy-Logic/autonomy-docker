@@ -1,0 +1,70 @@
+name: Security — release SBOM
+
+# SBOM flow, once per release (a commit landing on main): CycloneDX 1.6, SPDX 2.3 and a component CSV for every
+# image in images.conf, archived on the orphan branch security-archive. No vulnerability scan runs here.
+# A dispatch from any ref other than main writes archive_branch (default security-archive-test); main always
+# writes security-archive.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "security/**"
+      - "osv-scanner.toml"
+  workflow_dispatch:
+    inputs:
+      archive_branch:
+        description: "Archive branch for runs outside main (must start with security-archive-)"
+        required: true
+        default: security-archive-test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-sbom-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  sbom:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      ARCHIVE_BRANCH: ${{ github.ref == 'refs/heads/main' && 'security-archive' || inputs.archive_branch || 'security-archive-test' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+
+      - name: Build every image and generate its SBOM
+        run: scripts/generate-sbom.sh
+
+      - name: Check the three artifacts of each image agree on the component count
+        run: |
+          for cdx in sbom/*.cdx.json; do
+            name="$(basename "$cdx" .cdx.json)"
+            n_cdx="$(node -e 'import("./scripts/lib/cdx.mjs").then(({ collectComponents }) => console.log(collectComponents(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))).length))' "$cdx")"
+            n_spdx="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).packages.length' "sbom/$name.spdx.json")"
+            n_csv="$(( $(grep -c '' "sbom/$name.components.csv") - 1 ))"
+            echo "$name: cdx=$n_cdx spdx=$n_spdx csv=$n_csv"
+            if [ "$n_cdx" != "$n_spdx" ] || [ "$n_cdx" != "$n_csv" ]; then
+              echo "::error::component counts of $name disagree (cdx=$n_cdx spdx=$n_spdx csv=$n_csv)"
+              exit 1
+            fi
+          done
+
+      - name: Archive the SBOM with this release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_PROVENANCE: PROVENANCE-sbom.txt
+        run: |
+          dir="$(scripts/security-archive.sh dir)"
+          scripts/security-archive.sh publish "$dir" sbom/*.cdx.json sbom/*.spdx.json sbom/*.components.csv
+          echo "Archived to $ARCHIVE_BRANCH/$dir" >>"$GITHUB_STEP_SUMMARY"
