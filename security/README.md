@@ -54,8 +54,9 @@ What the SBOM of each image contains:
   `NOASSERTION`. Packages whose copyright file is not machine-readable have no licence in the SBOM.
 - **Components outside dpkg**: listed by hand in `components.json`; the version is read from the built image at SBOM
   time. Today this is the Node.js binary of `autonomy-node-base`, copied from the pinned `node:22-bookworm-slim`.
-- **Supplier**: a Debian package names the `Maintainer` of its dpkg entry as supplier; a `components.json` entry names
-  its upstream (`supplier`). A component with neither is `NOASSERTION` in the SPDX document.
+- **Supplier**: the image itself names Autonomy Logic, a Debian package the `Maintainer` of its dpkg entry, and a
+  `components.json` entry its upstream (`supplier`). A component with none of them is `NOASSERTION` in the SPDX
+  document.
 
 What the vulnerability scans cover: the Debian packages of every image, matched by osv-scanner against OSV (Debian
 advisories are reported against the source package). Package names in the register and the report carry the image

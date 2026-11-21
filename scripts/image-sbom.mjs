@@ -136,7 +136,7 @@ if (args.components && existsSync(args.components)) {
 
 const root = {
   'bom-ref': `pkg:oci/${args.name}@${args.version}`,
-  type: 'container', name: args.name, version: args.version,
+  type: 'container', name: args.name, version: args.version, supplier: { name: 'Autonomy Logic' },
   purl: `pkg:oci/${args.name}@${args.version}?repository_url=ghcr.io/autonomy-logic/${args.name}&tag=${args.version}`,
 };
 bom.metadata = { ...bom.metadata, component: root };

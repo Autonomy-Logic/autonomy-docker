@@ -672,7 +672,7 @@ test('security-archive: publishes and leaves no work directory behind', () => {
   assert.deepEqual(spawnSync('ls', ['-A', tmp], { encoding: 'utf8' }).stdout.trim(), '');
 });
 
-test('image-sbom: a Debian package takes its dpkg Maintainer as supplier, which reaches the SPDX', () => {
+test('image-sbom: a Debian package takes its dpkg Maintainer as supplier and the image Autonomy Logic, both reach the SPDX', () => {
   const { r, bom } = imageSbom('bash\t5.2\tamd64\tMatthias Klose <doko@debian.org>\nca-certificates\t2025\tall\tDebian\n', {});
   assert.equal(r.status, 0, r.stderr);
   const sup = (n) => bom.components.find((c) => c.name === n).supplier;
@@ -684,4 +684,5 @@ test('image-sbom: a Debian package takes its dpkg Maintainer as supplier, which 
   const pkgs = JSON.parse(readFileSync(spdx, 'utf8')).packages;
   assert.equal(pkgs.find((p) => p.name === 'bash').supplier, 'Organization: Matthias Klose');
   assert.equal(pkgs.find((p) => p.name.endsWith('ca-certificates')).supplier, 'Organization: Debian');
+  assert.equal(pkgs.find((p) => p.name === 'autonomy-base').supplier, 'Organization: Autonomy Logic');
 });
