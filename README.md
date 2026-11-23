@@ -32,6 +32,7 @@ Every image is built for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. A prod
 | `scripts/` | Repository scripts: the pull request version gate and the publish checks. |
 | `tests/` | Tests of the repository scripts and one smoke test per image, `tests/<dir>/run.sh`. |
 | `.github/workflows/build.yml` | Pull request checks and the publish jobs. |
+| `.github/workflows/security-*.yml`, `security/`, `osv-scanner.toml` | SBOM per release, vulnerability gate, release and monthly vulnerability reports; see [security/README.md](security/README.md). |
 | `.github/workflows/drift.yml` | Drift check. |
 
 The `orchestrator` and `netmon` directories and `drift.yml` are planned and not in the repository yet.

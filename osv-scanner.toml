@@ -1,0 +1,16 @@
+# osv-scanner suppression baseline for autonomy-docker (CISA VEX decisions).
+# Scanned input: the Debian packages of every image in images.conf, built for
+# linux/amd64 by scripts/build-images.sh. No suppressions recorded yet.
+#
+# An entry suppresses an advisory in every image. Package names in the reports
+# carry the image as a prefix (autonomy-node-base/curl); osv-scanner matches
+# the Debian source package name, without that prefix.
+#
+# Entry format (reason carries the VEX status, parsed by build-report.mjs):
+# [[IgnoredVulns]]
+# id = "DEBIAN-CVE-YYYY-NNNNN"
+# ignoreUntil = "YYYY-MM-DDT00:00:00Z"
+# reason = "VEX not_affected [<cisa_justification>]: <basis> [<package>]"
+#
+# Suppressions written by the automated monthly triage carry
+# "AI-TRIAGED [unreviewed]" in their reason until a human clears the marker.

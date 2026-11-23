@@ -1,0 +1,17 @@
+{
+  "_note": "Components an image ships outside dpkg, which the image scan cannot see. versionCommand runs in the built image; {version} is replaced by its output without versionPrefix.",
+  "components": [
+    {
+      "image": "node",
+      "name": "node",
+      "group": "nodejs",
+      "versionCommand": ["/usr/local/bin/node", "--version"],
+      "versionPrefix": "v",
+      "purl": "pkg:generic/nodejs/node@{version}",
+      "cpe": "cpe:2.3:a:nodejs:node.js:{version}:*:*:*:*:*:*:*",
+      "license": "MIT",
+      "supplier": "OpenJS Foundation",
+      "description": "Node.js binary copied from the pinned node:22-bookworm-slim image to /usr/local/bin/node"
+    }
+  ]
+}
