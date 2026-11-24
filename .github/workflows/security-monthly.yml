@@ -168,7 +168,7 @@ jobs:
           printf '%s\n' "$MONTH" >security/LATEST
 
       - name: Open the pull request
-        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1
         with:
           token: ${{ secrets.SECURITY_BOT_TOKEN || github.token }}
           base: main
