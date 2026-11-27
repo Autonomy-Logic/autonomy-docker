@@ -44,6 +44,27 @@ test('gate: same CVE on a NEW package is introduced (blocks); on the same packag
   const headSame = w('hs.json', scan(['shared', [adv('CVE-X', 'HIGH')]]));
   assert.equal(gate(base, headSame).status, 0, 'pre-existing must not block');
 });
+test('gate: a new image is compared with its nearest ancestor in base', () => {
+  const env = { GATE_COMMENT_FILE: join(dir, 'c.md'), GATE_STATUS_FILE: join(dir, 's'),
+    GATE_IMAGES_CONF: wText('images.conf', 'root base-pkg -\npython python-pkg root\nmid mid-pkg python\nleaf leaf-pkg mid\n'),
+    GATE_BASE_IMAGES: wText('images.txt', 'root base-pkg r:1\npython python-pkg r:1\n') };
+  const base = w('bi.json', scan(['python-pkg/glibc', [adv('CVE-OLD', 'CRITICAL')]]));
+  const inherited = w('hi.json', scan(['python-pkg/glibc', [adv('CVE-OLD', 'CRITICAL')]],
+    ['mid-pkg/glibc', [adv('CVE-OLD', 'CRITICAL')]], ['leaf-pkg/glibc', [adv('CVE-OLD', 'CRITICAL')]]));
+  assert.equal(run('pr-gate-diff.mjs', [base, inherited, 'CRITICAL'], env).status, 0, 'inherited advisories do not block');
+  assert.equal(gate(base, inherited, 'CRITICAL').status, 1, 'without the image lists they block');
+  const added = w('ha.json', scan(['python-pkg/glibc', [adv('CVE-OLD', 'CRITICAL')]],
+    ['leaf-pkg/glibc', [adv('CVE-OLD', 'CRITICAL'), adv('CVE-NEW', 'CRITICAL')]], ['leaf-pkg/busybox', [adv('CVE-OLD', 'CRITICAL')]]));
+  const r = run('pr-gate-diff.mjs', [base, added, 'CRITICAL'], env);
+  assert.equal(r.status, 1, 'advisories of the new layers block');
+  assert.match(r.stdout, /leaf-pkg\/glibc@1 {2}CVE-NEW/);
+  assert.match(r.stdout, /leaf-pkg\/busybox@1 {2}CVE-OLD/);
+  assert.doesNotMatch(r.stdout, /leaf-pkg\/glibc@1 {2}CVE-OLD/);
+  const existing = w('he.json', scan(['python-pkg/glibc', [adv('CVE-OLD', 'CRITICAL')]], ['base-pkg/glibc', [adv('CVE-OLD', 'CRITICAL')]]));
+  assert.equal(run('pr-gate-diff.mjs', [base, existing, 'CRITICAL'], env).status, 1, 'an image of the base is not compared with another image');
+  assert.equal(run('pr-gate-diff.mjs', [base, inherited, 'CRITICAL'], { ...env, GATE_BASE_IMAGES: '' }).status, 2, 'one list without the other fails closed');
+  assert.equal(run('pr-gate-diff.mjs', [base, inherited, 'CRITICAL'], { ...env, GATE_BASE_IMAGES: join(dir, 'nope.txt') }).status, 2, 'a missing list fails closed');
+});
 test('gate: fails CLOSED (exit 2) on missing or shapeless scan input', () => {
   assert.equal(gate(join(dir, 'nope.json'), w('h.json', { results: [] })).status, 2, 'missing base');
   assert.equal(gate(w('bad.json', { garbage: true }), w('h.json', { results: [] })).status, 2, 'no results array');

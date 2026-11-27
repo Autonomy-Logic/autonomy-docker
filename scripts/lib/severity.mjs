@@ -165,11 +165,16 @@ export function indexAdvisories(data) {
 }
 
 // Entries of headIdx with no alias in common with any baseIdx entry of the same
-// package: the advisories a change introduces.
-export function introducedAdvisories(baseIdx, headIdx) {
+// package: the advisories a change introduces. inherits maps a new image to its ancestor in base.
+export function introducedAdvisories(baseIdx, headIdx, inherits = new Map()) {
   const known = new Set();
   for (const a of baseIdx.values()) for (const n of a.aliases) known.add(`${n.toUpperCase()}|${a.pkg}`);
-  return [...headIdx.values()].filter((a) => !a.aliases.some((n) => known.has(`${n.toUpperCase()}|${a.pkg}`)));
+  const names = (pkg) => {
+    const at = pkg.indexOf('/');
+    const from = at > 0 ? inherits.get(pkg.slice(0, at)) : undefined;
+    return from ? [pkg, `${from}${pkg.slice(at)}`] : [pkg];
+  };
+  return [...headIdx.values()].filter((a) => !a.aliases.some((n) => names(a.pkg).some((pkg) => known.has(`${n.toUpperCase()}|${pkg}`))));
 }
 
 // True when any name of the entry is in the claimed set (upper-cased ids).

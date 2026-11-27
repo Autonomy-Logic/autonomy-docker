@@ -69,6 +69,8 @@ jobs:
         env:
           GATE_COMMENT_FILE: ${{ runner.temp }}/gate-comment.md
           GATE_STATUS_FILE: ${{ runner.temp }}/gate-status
+          GATE_IMAGES_CONF: images.conf
+          GATE_BASE_IMAGES: ${{ runner.temp }}/base/images.txt
         run: node scripts/pr-gate-diff.mjs "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json" "$GATE_THRESHOLD"
 
       - name: Comment the result on the pull request
