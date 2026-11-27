@@ -15,7 +15,9 @@
 - `scripts/publish-plan.sh`, `scripts/publish-image.sh`: the publish jobs; `scripts/setup-builder.sh`: the builder.
 - `scripts/lib/`: `tag-digest.sh` and `tag-exists.sh` (registry), `verify-attestation.sh` (`gh`), `images.sh`
   (image list loader).
-- `tests/check-versions/`, `tests/publish-checks/`: plain bash tests of the scripts; `run.sh` is the entry point.
+- `scripts/drift-check.sh`, `scripts/drift-issue.sh`: the weekly drift check (`.github/workflows/drift.yml`).
+- `tests/check-versions/`, `tests/publish-checks/`, `tests/drift/`: plain bash tests of the scripts; `run.sh` is the
+  entry point.
 - `tests/<dir>/run.sh <image> <platform>`: smoke test of an image; `tests/smoke.sh` and `tests/reproducible.sh`
   build every image.
 - `scripts/build-images.sh`, `scripts/scan-images.sh`, `scripts/generate-sbom.sh` and the `.mjs` scripts: the SBOM and
@@ -30,6 +32,7 @@
 ```sh
 tests/check-versions/run.sh
 tests/publish-checks/run.sh
+tests/drift/run.sh
 node --test scripts/__tests__/security-scripts.test.mjs
 shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh tests/*/*.sh node/*.sh
 scripts/check-versions.sh --base origin/main --head HEAD
@@ -43,7 +46,8 @@ SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)" docker buildx bake
 - LF line endings (`.gitattributes`); `.sh` files are committed with mode 100755.
 - Workflow actions are pinned by a bare full 40-character commit SHA, with no trailing comment. Images used by the
   build (`scripts/setup-builder.sh`, the SBOM generator in `scripts/publish-image.sh`) are pinned by digest.
-- Only the job `publish` has write permissions, and it restores no cache.
+- In `build.yml` and `drift.yml`, only the job `publish` (packages) and the job `issue` of the drift check
+  (`issues: write`) have write permissions. No job of either workflow saves or restores a cache.
 - Values reach a workflow `run:` step only through `env:`, never as a `${{ }}` expression in the script text.
 - Comments are minimal: a short description above a function, nothing else.
 - The job id `ci` is fixed because it is the required status check of `main`; the workflow file name

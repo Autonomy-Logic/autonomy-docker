@@ -29,13 +29,13 @@ Every image is built for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. A prod
 | `netmon/Dockerfile`, `netmon/VERSION` | Base image of the network monitor image. |
 | `docker-bake.hcl` | Docker Buildx bake definition of every image. |
 | `images.conf` | Image list: directory, package and parent of each image. |
-| `scripts/` | Repository scripts: the pull request version gate and the publish checks. |
+| `scripts/` | Repository scripts: the pull request version gate, the publish checks and the drift check. |
 | `tests/` | Tests of the repository scripts and one smoke test per image, `tests/<dir>/run.sh`. |
 | `.github/workflows/build.yml` | Pull request checks and the publish jobs. |
 | `.github/workflows/security-*.yml`, `security/`, `osv-scanner.toml` | SBOM per release, vulnerability gate, release and monthly vulnerability reports; see [security/README.md](security/README.md). |
-| `.github/workflows/drift.yml` | Drift check. |
+| `.github/workflows/drift.yml` | Weekly drift check; see [Drift check](#drift-check). |
 
-The `orchestrator` and `netmon` directories and `drift.yml` are planned and not in the repository yet.
+The `orchestrator` and `netmon` directories are planned and not in the repository yet.
 
 ## Base-image policy
 
@@ -127,15 +127,53 @@ the workflow (`export BUILDX_BUILDER=autonomy`) and `tests/smoke.sh` builds and 
 
 ## Drift check
 
-This section holds how the drift check detects upstream base-image changes and what to do when it fails.
+`.github/workflows/drift.yml` runs every Monday at 05:00 UTC and by manual dispatch. It runs
+`scripts/drift-check.sh`, which reads `images.conf`, so a new image needs no change in the workflow. A run reports:
+
+- **Upstream inputs.** For every `FROM` pinned by digest in an image directory, the pinned digest, the digest its
+  tag resolves to now and whether it moved.
+- **Build and test on the moved inputs.** When an input moved, the image that pins it and every descendant are
+  built for the three platforms on the new digest, without pushing, and their smoke tests run.
+- **Pending Debian updates.** For every published base, the packages for which the live Debian archive holds a
+  newer version than the base carries, with the updates from the security archive listed by package. A security
+  fix that Debian has already moved into a point release counts as an other update; the image scan still reports it.
+- **Image scan.** Trivy scans every published base, by digest, on the three platforms and counts the findings by
+  severity, with the Critical and High findings that have a fixed version listed.
+
+The report is the job summary of the run, and the run keeps it with the scan files as the artifact `drift-report`
+for 90 days. When something needs action, the job `issue` opens the issue "Drift check: action needed", or adds the
+report as a comment while that issue is open. Action is needed when an upstream input moved, a build or a smoke
+test on a moved input failed, a published base has a pending Debian security update, or a scan has a Critical or
+High finding with a fixed version.
+
+The drift check never changes a pin, never pushes an image and never opens a pull request. Its job `check` has only
+`contents: read` and saves no Actions cache; its job `issue` adds `issues: write` and runs only
+`scripts/drift-issue.sh` on the report. Trivy is installed as a release binary of a fixed version, verified against
+a SHA-256 fixed in the workflow.
+
+### Acting on a report
+
+A report is acted on with the [Bump procedure](#bump-procedure): raise `DEBIAN_SNAPSHOT` and the upstream digest in
+the root, or the upstream digest in the image that pins it, and bump every descendant. The issue is closed when the
+new bases are published and the pin pull requests of the products are open.
+
+Security response time, counted from the date of the drift report that first shows the finding:
+
+| Finding | A published base bump and its pin pull requests within |
+| --- | --- |
+| Critical | 7 days |
+| High | 30 days |
+
+A moved upstream input alone forces no bump: a bump makes every device download the base layers again, so it waits
+for a finding above or for the next planned bump.
 
 ## Pull request checks
 
 Every pull request to `main` runs `.github/workflows/build.yml`. Its job `ci` is the single gate check: it passes only
 when every job it depends on succeeds. It depends on:
 
-- `check-versions`: `shellcheck` on the scripts and tests, the tests of the version gate and of the publish checks,
-  and `scripts/check-versions.sh` against the base of the pull request;
+- `check-versions`: `shellcheck` on the scripts and tests, the tests of the version gate, of the publish checks and
+  of the drift check, and `scripts/check-versions.sh` against the base of the pull request;
 - `images`: builds every image for the three platforms without pushing, runs the smoke tests (`tests/smoke.sh`) and
   the reproducibility check (`tests/reproducible.sh`).
 
