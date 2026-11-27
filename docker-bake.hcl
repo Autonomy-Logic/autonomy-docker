@@ -46,8 +46,24 @@ variable "RUNTIME_TAG" {
   default = "dev"
 }
 
+variable "ORCHESTRATOR_PACKAGE" {
+  default = "orchestrator-agent-base"
+}
+
+variable "ORCHESTRATOR_TAG" {
+  default = "dev"
+}
+
+variable "NETMON_PACKAGE" {
+  default = "autonomy-netmon-base"
+}
+
+variable "NETMON_TAG" {
+  default = "dev"
+}
+
 group "default" {
-  targets = ["root", "python", "node", "runtime"]
+  targets = ["root", "python", "node", "runtime", "orchestrator", "netmon"]
 }
 
 target "_common" {
@@ -97,6 +113,32 @@ target "runtime" {
   inherits = ["_common"]
   context  = "runtime"
   tags     = ["${REGISTRY}/${RUNTIME_PACKAGE}:${RUNTIME_TAG}"]
+  contexts = {
+    parent = PYTHON_DIGEST == "" ? "target:python" : "docker-image://${REGISTRY}/${PYTHON_PACKAGE}:${PYTHON_TAG}@${PYTHON_DIGEST}"
+  }
+  labels = {
+    "org.opencontainers.image.base.name"   = "${REGISTRY}/${PYTHON_PACKAGE}:${PYTHON_TAG}"
+    "org.opencontainers.image.base.digest" = PYTHON_DIGEST
+  }
+}
+
+target "orchestrator" {
+  inherits = ["_common"]
+  context  = "orchestrator"
+  tags     = ["${REGISTRY}/${ORCHESTRATOR_PACKAGE}:${ORCHESTRATOR_TAG}"]
+  contexts = {
+    parent = PYTHON_DIGEST == "" ? "target:python" : "docker-image://${REGISTRY}/${PYTHON_PACKAGE}:${PYTHON_TAG}@${PYTHON_DIGEST}"
+  }
+  labels = {
+    "org.opencontainers.image.base.name"   = "${REGISTRY}/${PYTHON_PACKAGE}:${PYTHON_TAG}"
+    "org.opencontainers.image.base.digest" = PYTHON_DIGEST
+  }
+}
+
+target "netmon" {
+  inherits = ["_common"]
+  context  = "netmon"
+  tags     = ["${REGISTRY}/${NETMON_PACKAGE}:${NETMON_TAG}"]
   contexts = {
     parent = PYTHON_DIGEST == "" ? "target:python" : "docker-image://${REGISTRY}/${PYTHON_PACKAGE}:${PYTHON_TAG}@${PYTHON_DIGEST}"
   }

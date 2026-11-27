@@ -502,31 +502,39 @@ case_19_publish_image_fails_on_bad_input_or_a_failed_build() {
 
 case_20_publish_image_builds_a_child_of_a_child_on_its_own_parent() {
   local python_call="${GH_CALL/"$IMAGE@"/"$PYTHON_IMAGE@"}"
+  local child dir package tag prefix
+  local -a expected
 
-  sub "parent attested"
-  runtime_fixture
-  registry 200 404 "$DIGEST"
-  registry_package autonomy-python-base 200
-  attestation 0
-  run_script "$PUBLISH_IMAGE" "$REGISTRY" "$SIGNER" "$SOURCE_REF" runtime
-  expect_rc 0
-  expect_stdout "pushed $REGISTRY/openplc-runtime-base:trixie-1@$PUSHED_DIGEST" \
-    "parent $PYTHON_IMAGE:py3.13-trixie-1@$DIGEST"
-  expect_gh "$python_call"
-  expect_docker "buildx bake runtime --push --provenance=mode=max --sbom=$SBOM --metadata-file <metadata>" \
-    "PYTHON_DIGEST=$DIGEST" "PYTHON_PACKAGE=autonomy-python-base" "PYTHON_TAG=py3.13-trixie-1" \
-    "REGISTRY=$REGISTRY" "RUNTIME_PACKAGE=openplc-runtime-base" "RUNTIME_TAG=trixie-1" \
-    "SOURCE_DATE_EPOCH=1794347526"
+  for child in "runtime openplc-runtime-base trixie-1" "orchestrator orchestrator-agent-base py3.13-trixie-1" \
+    "netmon autonomy-netmon-base py3.13-trixie-1"; do
+    read -r dir package tag <<<"$child"
+    prefix="${dir^^}"
 
-  sub "parent not attested"
-  runtime_fixture
-  registry 200 404 "$DIGEST"
-  registry_package autonomy-python-base 200
-  attestation 1
-  run_script "$PUBLISH_IMAGE" "$REGISTRY" "$SIGNER" "$SOURCE_REF" runtime
-  expect_rc 1
-  expect_stdout
-  expect_stderr_has "py3.13-trixie-1" "$DIGEST"
-  expect_gh "$python_call"
-  expect_docker
+    sub "$dir: parent attested"
+    child_fixture "$dir" "$package" "$tag"
+    registry 200 404 "$DIGEST"
+    registry_package autonomy-python-base 200
+    attestation 0
+    run_script "$PUBLISH_IMAGE" "$REGISTRY" "$SIGNER" "$SOURCE_REF" "$dir"
+    expect_rc 0
+    expect_stdout "pushed $REGISTRY/$package:$tag@$PUSHED_DIGEST" "parent $PYTHON_IMAGE:py3.13-trixie-1@$DIGEST"
+    expect_gh "$python_call"
+    mapfile -t expected < <(printf '%s\n' "PYTHON_DIGEST=$DIGEST" "PYTHON_PACKAGE=autonomy-python-base" \
+      "PYTHON_TAG=py3.13-trixie-1" "REGISTRY=$REGISTRY" "${prefix}_PACKAGE=$package" "${prefix}_TAG=$tag" \
+      "SOURCE_DATE_EPOCH=1794347526" | LC_ALL=C sort)
+    expect_docker "buildx bake $dir --push --provenance=mode=max --sbom=$SBOM --metadata-file <metadata>" \
+      "${expected[@]}"
+
+    sub "$dir: parent not attested"
+    child_fixture "$dir" "$package" "$tag"
+    registry 200 404 "$DIGEST"
+    registry_package autonomy-python-base 200
+    attestation 1
+    run_script "$PUBLISH_IMAGE" "$REGISTRY" "$SIGNER" "$SOURCE_REF" "$dir"
+    expect_rc 1
+    expect_stdout
+    expect_stderr_has "py3.13-trixie-1" "$DIGEST"
+    expect_gh "$python_call"
+    expect_docker
+  done
 }

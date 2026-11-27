@@ -13,6 +13,8 @@ The central repository that builds the base images of the Autonomy Node product 
 | `python` | `ghcr.io/autonomy-logic/autonomy-python-base` | `py3.13-trixie-1` | `root` plus Debian `python3` 3.13 and `libpython3.13` | `root` |
 | `node` | `ghcr.io/autonomy-logic/autonomy-node-base` | `node22-trixie-1` | `root` plus the Node.js 22 binary of `node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee`, `stunnel4` (also as `stunnel`, with `systemd-standalone-sysusers` in place of systemd), `openssl`, `git` without perl and its unused helpers, `wget`, `libatomic1` | `root` |
 | `runtime` | `ghcr.io/autonomy-logic/openplc-runtime-base` | `trixie-1` | `python` plus `g++` 14, `make`, `ccache`, `ethtool`, `curl` and the directory `/var/run/runtime` | `python` |
+| `orchestrator` | `ghcr.io/autonomy-logic/orchestrator-agent-base` | `py3.13-trixie-1` | `python` plus `libsrtp2-1`; `libffi8` comes from `python` | `python` |
+| `netmon` | `ghcr.io/autonomy-logic/autonomy-netmon-base` | `py3.13-trixie-1` | `python` plus `iproute2`, `iptables` (the `iptables-legacy` alternative), `udhcpc`, `procps` and the virtual environment `/opt/venv`, first on `PATH`, with `pyroute2` 0.9.7, `pyudev` 0.24.5, `zeroconf` 0.154.0 and `ifaddr` 0.2.0 | `python` |
 
 Every image is built for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. A product pins a base by tag and digest,
 `FROM <package>:<tag>@sha256:<digest>`; the publish run prints that line in its summary.
@@ -26,7 +28,7 @@ Every image is built for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. A prod
 | `node/Dockerfile`, `node/VERSION` | Node.js base image. |
 | `runtime/Dockerfile`, `runtime/VERSION` | Base image of the PLC runtime image. |
 | `orchestrator/Dockerfile`, `orchestrator/VERSION` | Base image of the orchestrator agent image. |
-| `netmon/Dockerfile`, `netmon/VERSION` | Base image of the network monitor image. |
+| `netmon/Dockerfile`, `netmon/VERSION`, `netmon/requirements.txt` | Base image of the network monitor image and its Python libraries. |
 | `docker-bake.hcl` | Docker Buildx bake definition of every image. |
 | `images.conf` | Image list: directory, package and parent of each image. |
 | `scripts/` | Repository scripts: the pull request version gate and the publish checks. |
@@ -35,7 +37,7 @@ Every image is built for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. A prod
 | `.github/workflows/security-*.yml`, `security/`, `osv-scanner.toml` | SBOM per release, vulnerability gate, release and monthly vulnerability reports; see [security/README.md](security/README.md). |
 | `.github/workflows/drift.yml` | Drift check. |
 
-The `orchestrator` and `netmon` directories and `drift.yml` are planned and not in the repository yet.
+`drift.yml` is planned and not in the repository yet.
 
 ## Base-image policy
 
@@ -49,6 +51,9 @@ The `orchestrator` and `netmon` directories and `drift.yml` are planned and not 
   only through a reviewed pull request that bumps `node/VERSION`.
 - The node image removes perl with `dpkg --purge --force-depends`, which leaves unmet dpkg dependencies: an image
   built on it must not run `apt-get install`.
+- A Python library in a base image is installed into a virtual environment from a `requirements.txt` that pins every
+  library, dependencies included, to an exact version with the hash of each wheel. A library version changes only
+  through a reviewed pull request that bumps the `VERSION` of that image.
 - A child image names its parent as the build context `parent` (`FROM parent`); `docker-bake.hcl` resolves it. The
   labels `org.opencontainers.image.base.name` and `org.opencontainers.image.base.digest` of a published child hold the
   tag and the digest of the parent it was built on.

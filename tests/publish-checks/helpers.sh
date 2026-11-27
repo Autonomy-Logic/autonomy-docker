@@ -80,12 +80,12 @@ fixture() {
   printf 'py3.13-trixie-1\n' >"$RUN_CWD/python/VERSION"
 }
 
-# Adds a child of python to the image list fixture.
-runtime_fixture() {
+# Adds a child of python to the image list fixture: directory, package and tag.
+child_fixture() {
   fixture
-  mkdir -p "$RUN_CWD/runtime"
-  printf 'runtime openplc-runtime-base python\n' >>"$RUN_CWD/images.conf"
-  printf 'trixie-1\n' >"$RUN_CWD/runtime/VERSION"
+  mkdir -p "$RUN_CWD/$1"
+  printf '%s %s python\n' "$1" "$2" >>"$RUN_CWD/images.conf"
+  printf '%s\n' "$3" >"$RUN_CWD/$1/VERSION"
 }
 
 # Sets the exit code of the fake gh.
