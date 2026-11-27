@@ -40,6 +40,9 @@ jobs:
       - name: Test publish checks
         run: tests/publish-checks/run.sh
 
+      - name: Test drift check
+        run: tests/drift/run.sh
+
       - name: Check image versions
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
