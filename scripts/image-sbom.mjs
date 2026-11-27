@@ -128,7 +128,7 @@ if (args.components && existsSync(args.components)) {
       ...(e.group ? { group: e.group } : {}),
       ...(e.cpe ? { cpe: fill(e.cpe) } : {}),
       ...(e.supplier ? { supplier: { name: e.supplier } } : {}),
-      ...(e.license ? { licenses: [{ license: { id: e.license } }] } : {}),
+      ...(e.license ? { licenses: [/\s/.test(e.license) ? { expression: e.license } : { license: { id: e.license } }] } : {}),
       ...(e.description ? { description: e.description } : {}),
     });
   }
