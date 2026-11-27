@@ -9,7 +9,7 @@ Two separate flows, run by GitHub Actions:
 | Flow | What it is | When it runs | Output |
 |---|---|---|---|
 | **SBOM** (`security-sbom.yml`) | One bill of materials per image: every installed package with its version and licence (CycloneDX 1.6, SPDX 2.3, components CSV) | Once per release: a commit landing on `main` | Branch `security-archive`, folder `pr-<n>-<date>/` |
-| **Vulnerabilities, PR check** (`security-pr-gate.yml`) | osv-scanner on the images of the PR head and base | Every PR into `main` (or `development`) | Blocks only a **critical advisory the PR introduces**; pre-existing advisories never block. Sticky PR comment, no SBOM, no report |
+| **Vulnerabilities, PR check** (`security-pr-gate.yml`) | osv-scanner on the images of the PR head and base | Every PR into `main` (or `development`) | Blocks only a **critical advisory the PR introduces**; pre-existing advisories never block. An image the PR adds is compared with its nearest ancestor in the base, so only its own layers count. Sticky PR comment, no SBOM, no report |
 | **Vulnerabilities, release report** (`security-release-vulns.yml`) | Image scan plus the vulnerability report (md, html, pdf) | Once per release, next to the SBOM | Same `security-archive` folder as the SBOM |
 | **Vulnerabilities, monthly** (`security-monthly.yml`) | Image scan of `main`, Claude triage of new advisories, vulnerability report | 1st of every month, 06:00 UTC, and on demand | A PR into `main` with `security/<YYYY-MM>/` |
 
@@ -53,7 +53,8 @@ What the SBOM of each image contains:
   (`AND` across the file's stanzas); otherwise it lists the Debian names as written, and the SPDX document says
   `NOASSERTION`. Packages whose copyright file is not machine-readable have no licence in the SBOM.
 - **Components outside dpkg**: listed by hand in `components.json`; the version is read from the built image at SBOM
-  time. Today this is the Node.js binary of `autonomy-node-base`, copied from the pinned `node:22-bookworm-slim`.
+  time. Today these are the Node.js binary of `autonomy-node-base`, copied from the pinned `node:22-bookworm-slim`,
+  and the Python libraries in `/opt/venv` of `autonomy-netmon-base`, pinned in `netmon/requirements.txt`.
 - **Supplier**: the image itself names Autonomy Logic, a Debian package the `Maintainer` of its dpkg entry (name, with the address as contact), and a
   `components.json` entry its upstream (`supplier`). A component with none of them is `NOASSERTION` in the SPDX
   document.

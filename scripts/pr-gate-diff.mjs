@@ -7,6 +7,7 @@
 // Exit 0 = pass, 2 = unusable input or threshold (fail closed). Writes the PR
 // comment to $GATE_COMMENT_FILE and block|warn|clean to $GATE_STATUS_FILE.
 // UNKNOWN severity never blocks; it is listed.
+// $GATE_IMAGES_CONF and $GATE_BASE_IMAGES: head images.conf and base images.txt, to compare a new image with its parent.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { ORDER, UNKNOWN, rank, normWord, indexAdvisories, introducedAdvisories, bySeverity } from './lib/severity.mjs';
@@ -49,7 +50,29 @@ const baseIdx = indexAdvisories(base);
 const headIdx = indexAdvisories(head);
 const min = rank(THRESHOLD);
 
-const introduced = introducedAdvisories(baseIdx, headIdx).sort(bySeverity);
+// Package of each image absent from base, mapped to the package of its nearest ancestor in base.
+function inheritedImages(confP, baseImagesP) {
+  const rows = (p, label) => {
+    try { return readFileSync(p, 'utf8').split('\n').map((l) => l.trim().split(/\s+/)).filter((f) => f[0]); }
+    catch (e) { fatal(`${label} "${p}" is missing (${e.code || e.message}).`); }
+  };
+  const inBase = new Set(rows(baseImagesP, 'base image list').map((f) => f[1]));
+  const byDir = new Map(rows(confP, 'images.conf').map(([dir, pkg, parent]) => [dir, { pkg, parent }]));
+  const inherits = new Map();
+  for (const { pkg, parent } of byDir.values()) {
+    if (inBase.has(pkg)) continue;
+    for (let up = byDir.get(parent); up; up = byDir.get(up.parent)) {
+      if (inBase.has(up.pkg)) { inherits.set(pkg, up.pkg); break; }
+    }
+  }
+  return inherits;
+}
+const { GATE_IMAGES_CONF, GATE_BASE_IMAGES } = process.env;
+if (Boolean(GATE_IMAGES_CONF) !== Boolean(GATE_BASE_IMAGES)) fatal('GATE_IMAGES_CONF and GATE_BASE_IMAGES must be set together.');
+const inherits = GATE_IMAGES_CONF ? inheritedImages(GATE_IMAGES_CONF, GATE_BASE_IMAGES) : new Map();
+for (const [pkg, from] of inherits) console.log(`New image ${pkg}: compared with ${from} of the base.`);
+
+const introduced = introducedAdvisories(baseIdx, headIdx, inherits).sort(bySeverity);
 const blocking = introduced.filter((a) => rank(a.sev) >= min);
 const hasUnknown = introduced.some((a) => a.sev === UNKNOWN);
 

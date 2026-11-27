@@ -12,6 +12,46 @@
       "license": "MIT",
       "supplier": "OpenJS Foundation",
       "description": "Node.js binary copied from the pinned node:22-bookworm-slim image to /usr/local/bin/node"
+    },
+    {
+      "image": "netmon",
+      "name": "ifaddr",
+      "type": "library",
+      "versionCommand": ["/opt/venv/bin/python", "-c", "import importlib.metadata; print(importlib.metadata.version('ifaddr'))"],
+      "purl": "pkg:pypi/ifaddr@{version}",
+      "license": "MIT",
+      "supplier": "Stefan C. Mueller",
+      "description": "Python library installed from PyPI into /opt/venv, pinned with hashes in netmon/requirements.txt"
+    },
+    {
+      "image": "netmon",
+      "name": "pyroute2",
+      "type": "library",
+      "versionCommand": ["/opt/venv/bin/python", "-c", "import importlib.metadata; print(importlib.metadata.version('pyroute2'))"],
+      "purl": "pkg:pypi/pyroute2@{version}",
+      "license": "GPL-2.0-or-later OR Apache-2.0",
+      "supplier": "Peter Saveliev",
+      "description": "Python library installed from PyPI into /opt/venv, pinned with hashes in netmon/requirements.txt"
+    },
+    {
+      "image": "netmon",
+      "name": "pyudev",
+      "type": "library",
+      "versionCommand": ["/opt/venv/bin/python", "-c", "import importlib.metadata; print(importlib.metadata.version('pyudev'))"],
+      "purl": "pkg:pypi/pyudev@{version}",
+      "license": "LGPL-2.1-or-later",
+      "supplier": "Sebastian Wiesner",
+      "description": "Python library installed from PyPI into /opt/venv, pinned with hashes in netmon/requirements.txt"
+    },
+    {
+      "image": "netmon",
+      "name": "zeroconf",
+      "type": "library",
+      "versionCommand": ["/opt/venv/bin/python", "-c", "import importlib.metadata; print(importlib.metadata.version('zeroconf'))"],
+      "purl": "pkg:pypi/zeroconf@{version}",
+      "license": "LGPL-2.1-or-later",
+      "supplier": "The python-zeroconf authors",
+      "description": "Python library installed from PyPI into /opt/venv, pinned with hashes in netmon/requirements.txt"
     }
   ]
 }
